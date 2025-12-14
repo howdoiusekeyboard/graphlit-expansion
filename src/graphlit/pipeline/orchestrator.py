@@ -343,8 +343,54 @@ class ExpansionOrchestrator:
 
         This is a second pass that creates edges only between
         papers that both exist in the graph.
+
+        If _pending_citations is empty (resume case), fetches all papers
+        from the database and retrieves their references from OpenAlex API.
         """
+        # Handle resume case: if no citations were collected during BFS,
+        # fetch all papers and their references from the API
         if not self._pending_citations:
+            logger.info("fetching_references_for_existing_papers", count=len(self._visited))
+
+            # Convert set to list for progress tracking
+            paper_ids = list(self._visited)
+
+            with Progress(
+                TextColumn("[progress.description]{task.description}"),
+                BarColumn(),
+                MofNCompleteColumn(),
+                console=self.console,
+            ) as progress:
+                task = progress.add_task(
+                    "Fetching references for existing papers...",
+                    total=len(paper_ids),
+                )
+
+                for paper_id in paper_ids:
+                    # Fetch work from API to get references
+                    work = await self.api.get_work(paper_id)
+                    self.stats.increment_api_calls()
+
+                    if work:
+                        ref_ids = self.mapper.get_reference_ids(work, limit=100)
+                        if ref_ids:
+                            self._pending_citations.append((paper_id, ref_ids))
+
+                    progress.update(task, advance=1)
+
+                    # Log progress every 100 papers
+                    if (len(self._pending_citations) % 100 == 0 and
+                        len(self._pending_citations) > 0):
+                        logger.info(
+                            "references_fetch_progress",
+                            processed=len(self._pending_citations),
+                        )
+
+            logger.info("references_fetched", total=len(self._pending_citations))
+
+        # Now create citation edges from pending citations
+        if not self._pending_citations:
+            logger.info("no_citations_to_create")
             return
 
         logger.info("creating_citation_edges", pending=len(self._pending_citations))
