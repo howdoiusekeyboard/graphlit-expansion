@@ -23,7 +23,7 @@ Expands academic citation networks from seed papers using OpenAlex API and Neo4j
 ### 1. Clone Repository
 
 ```bash
-git clone https://github.com/yourusername/graphlit-expansion.git
+git clone https://github.com/howdoiusekeyboard/graphlit-expansion.git
 cd graphlit-expansion
 ```
 
