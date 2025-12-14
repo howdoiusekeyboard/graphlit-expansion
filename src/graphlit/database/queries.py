@@ -153,16 +153,15 @@ MERGE (citing)-[:CITES]->(cited)
 
 GET_GRAPH_STATS = """
 MATCH (p:Paper)
-OPTIONAL MATCH (a:Author)
-OPTIONAL MATCH (v:Venue)
-OPTIONAL MATCH (t:Topic)
-OPTIONAL MATCH ()-[c:CITES]->()
-RETURN
-    count(DISTINCT p) AS papers,
-    count(DISTINCT a) AS authors,
-    count(DISTINCT v) AS venues,
-    count(DISTINCT t) AS topics,
-    count(c) AS citations
+WITH count(p) AS papers
+MATCH (a:Author)
+WITH papers, count(a) AS authors
+MATCH (v:Venue)
+WITH papers, authors, count(v) AS venues
+MATCH (t:Topic)
+WITH papers, authors, venues, count(t) AS topics
+MATCH ()-[c:CITES]->()
+RETURN papers, authors, venues, topics, count(c) AS citations
 """
 
 # =============================================================================
