@@ -1,0 +1,77 @@
+[
+  {
+    "doi": "10.1145/3292500.3330919",
+    "title": "Graph Neural Networks: A Review of Methods and Applications",
+    "note": "Highly cited GNN survey paper"
+  },
+  {
+    "doi": "10.48550/arXiv.1706.03762",
+    "title": "Attention Is All You Need",
+    "note": "Transformer architecture paper"
+  },
+  {
+    "doi": "10.1038/s41586-021-03819-2",
+    "title": "Highly accurate protein structure prediction with AlphaFold",
+    "note": "AlphaFold2 paper"
+  },
+  {
+    "doi": "10.48550/arXiv.1810.04805",
+    "title": "BERT: Pre-training of Deep Bidirectional Transformers",
+    "note": "BERT language model paper"
+  },
+  {
+    "doi": "10.1145/3097983.3098036",
+    "title": "Inductive Representation Learning on Large Graphs",
+    "note": "GraphSAGE paper"
+  },
+  {
+    "doi": "10.48550/arXiv.1609.02907",
+    "title": "Semi-Supervised Classification with Graph Convolutional Networks",
+    "note": "GCN paper by Kipf & Welling"
+  },
+  {
+    "doi": "10.1109/CVPR.2016.90",
+    "title": "Deep Residual Learning for Image Recognition",
+    "note": "ResNet paper"
+  },
+  {
+    "doi": "10.48550/arXiv.2005.14165",
+    "title": "Language Models are Few-Shot Learners",
+    "note": "GPT-3 paper"
+  },
+  {
+    "doi": "10.1145/3394486.3403063",
+    "title": "Graph Contrastive Learning with Augmentations",
+    "note": "GraphCL paper"
+  },
+  {
+    "doi": "10.48550/arXiv.1710.10903",
+    "title": "Graph Attention Networks",
+    "note": "GAT paper"
+  },
+  {
+    "doi": "10.1145/3437963.3441729",
+    "title": "Self-Supervised Learning on Graphs: Deep Insights and New Direction",
+    "note": "SSL on graphs survey"
+  },
+  {
+    "doi": "10.1145/3219819.3220033",
+    "title": "Representation Learning on Graphs with Jumping Knowledge Networks",
+    "note": "JK-Net paper"
+  },
+  {
+    "doi": "10.48550/arXiv.1911.05722",
+    "title": "Strategies for Pre-training Graph Neural Networks",
+    "note": "GNN pre-training strategies"
+  },
+  {
+    "doi": "10.1145/3366423.3380220",
+    "title": "GPT-GNN: Generative Pre-Training of Graph Neural Networks",
+    "note": "Generative pre-training for GNNs"
+  },
+  {
+    "doi": "10.1609/aaai.v33i01.33014700",
+    "title": "How Powerful are Graph Neural Networks?",
+    "note": "GIN paper - theoretical analysis of GNNs"
+  }
+]
