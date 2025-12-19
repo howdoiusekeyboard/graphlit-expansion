@@ -26,6 +26,12 @@ dependencies = [
     "rich==13.9.4",
     "aiolimiter==1.2.1",
     "python-dotenv==1.0.1",
+    # Week 1 Dependencies - ResearchRadar Analytics
+    "fastapi==0.115.0",
+    "uvicorn[standard]==0.34.0",
+    "redis==5.2.1",
+    "numpy==2.0.2",
+    "pandas==2.2.3",
 ]
 
 [project.optional-dependencies]
@@ -36,6 +42,9 @@ dev = [
     "pytest-asyncio==0.24.0",
     "pytest-httpx==0.30.0",
     "pytest-cov==4.1.0",
+    # Week 1 Testing Dependencies
+    "pytest-redis==3.1.0",
+    "fakeredis==2.25.1",
 ]
 
 [project.scripts]
@@ -74,6 +83,9 @@ ignore_missing_imports = false
 [[tool.mypy.overrides]]
 module = [
     "aiolimiter.*",
+    "redis.*",
+    "numpy.*",
+    "pandas.*",
 ]
 ignore_missing_imports = true
 

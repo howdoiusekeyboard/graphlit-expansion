@@ -1,0 +1,21 @@
+rank,paper_id,title,year,citations,impact_score,pagerank,citation_velocity,author_reputation,topic_momentum
+1,W2163605009,ImageNet classification with deep convolutional neural networks,2017,75536,42.79,1.0,0.3585,0.1387,0.0179
+2,W3118608800,Learning Multiple Layers of Features from Tiny Images,2024,25434,39.49,0.4759,0.5433,0.4413,0.0299
+3,W2194775991,Deep Residual Learning for Image Recognition,2016,208735,29.29,0.1186,0.8917,0.1195,0.0224
+4,W4385245566,MizAR 60 for Mizar 50,2023,70225,27.57,0.028,1.0,0.0352,0.0424
+5,W2302255633,Identity Mappings in Deep Residual Networks,2016,9758,26.65,0.0153,0.0417,1.0,0.0075
+6,W2097117768,Going deeper with convolutions,2015,45596,25.44,0.6008,0.1771,0.1017,0.0224
+7,W2964015378,Detecting Functionality-Specific Vulnerabilities via Retrieving Individual Functionality-Equivalent APIs in Open-Source Repositories,2025,15795,20.42,0.0088,0.6748,0.094,0.0468
+8,W2949117887,Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift,2024,15635,20.17,0.0863,0.334,0.3446,0.031
+9,W1677182931,Delving Deep into Rectifiers: Surpassing Human-Level Performance on ImageNet Classification,2015,18160,17.36,0.1794,0.0705,0.3913,0.0217
+10,W2626778328,Attention Is All You Need,2025,6466,15.51,0.0199,0.2762,0.2864,0.0424
+11,W1905882502,Deep visual-semantic alignments for generating image descriptions,2015,4857,15.48,0.0996,0.0189,0.4541,0.0335
+12,W2109255472,Spatial Pyramid Pooling in Deep Convolutional Networks for Visual Recognition,2015,10916,15.42,0.0312,0.0424,0.519,0.0224
+13,W2170240176,Character-level Convolutional Networks for Text Classification,2015,3266,13.06,0.0242,0.0127,0.4492,0.0394
+14,W637153065,Deep Convolutional Networks on Graph-Structured Data,2015,1346,12.56,0.0118,0.0052,0.4604,0.0283
+15,W3177828909,Highly accurate protein structure prediction with AlphaFold,2021,39627,12.35,0.0165,0.3386,0.0514,0.1051
+16,W1836465849,Batch Normalization: Accelerating Deep Network Training by Reducing Internal Covariate Shift,2015,24174,12.32,0.0754,0.0939,0.2699,0.0481
+17,W1526734559,Pedestrian detection with a Large-Field-Of-View deep network,2015,85,12.02,0.0084,0.0003,0.4559,0.0182
+18,W2919115771,Deep learning,2015,75636,11.84,0.045,0.2937,0.1007,0.0313
+19,W1901129140,U-Net: Convolutional Networks for Biomedical Image Segmentation,2015,82209,11.43,0.0088,0.3193,0.1245,0.0037
+20,W3183475563,Highly accurate protein structure prediction for the human proteome,2021,2970,10.16,0.0099,0.0254,0.2746,0.1182
