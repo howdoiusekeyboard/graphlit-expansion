@@ -5,10 +5,10 @@
 backend/new/
 
 # Project documentation (keep local only)
-CLAUDE.md
-IMPROVEMENTS.md
+backend/CLAUDE.md
+backend/IMPROVEMENTS.md
+backend/Master Prompt.md
 prompt.md
-Master Prompt.md
 
 # Python
 __pycache__/
