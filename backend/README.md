@@ -1,159 +1,118 @@
 # GraphLit Expansion System
 
-Expands academic citation networks from seed papers using OpenAlex API and Neo4j. Starts with 15 seed DOIs and performs breadth-first traversal to collect 1000+ connected papers with full metadata.
+Academic citation network expansion via OpenAlex API and Neo4j. BFS traversal from 15 seed DOIs to collect 1000+ papers with full metadata.
 
-## Features
+## Architecture
 
-- Async I/O with httpx and Neo4j async driver
-- Rate limiting (10 req/sec for OpenAlex polite pool)
-- Resumable via idempotent MERGE operations
-- Real-time progress bars (Rich)
-- Structured JSON logging (structlog)
-- Type-safe configuration (Pydantic)
-- Passes mypy strict mode
+- Async I/O (httpx, neo4j-driver)
+- Rate-limited OpenAlex client (10 req/s)
+- Idempotent MERGE operations (resumable)
+- Structured logging (structlog)
+- Type-safe configuration (pydantic-settings)
+- Strict mypy compliance
 
-## Prerequisites
+## Requirements
 
-- Python 3.12 or later
-- Neo4j Desktop 1.5.0+ (download from neo4j.com/download)
-- OpenAlex polite pool access (free, requires email)
+- Python 3.12+
+- Neo4j 5.x
+- OpenAlex API access (email required for polite pool)
 
-## Installation
-
-### 1. Clone Repository
+## Setup
 
 ```bash
 git clone https://github.com/howdoiusekeyboard/graphlit-expansion.git
 cd graphlit-expansion
-```
 
-### 2. Neo4j Desktop Setup
-
-**Install Neo4j Desktop:**
-1. Download from https://neo4j.com/download/
-2. Install and create Neo4j account (free)
-
-**Create Database:**
-1. Open Neo4j Desktop
-2. Click "New" → "Create Project" → name it "GraphLit"
-3. Click "Add" → "Local DBMS"
-4. Name: "literature-survey"
-5. Password: Choose a password (save it for step 4)
-6. Version: 5.x (latest stable)
-7. Click "Create"
-
-**Start Database:**
-1. Click "Start" on your database
-2. Wait for status to show "Active"
-3. Click on the database → "Open" → copy the Bolt URL
-   - Should be: `bolt://localhost:7687`
-   - Or: `neo4j://localhost:7687`
-
-### 3. Python Environment
-
-```bash
-# Create virtual environment
+# Virtual environment
 python -m venv .venv
+.venv\Scripts\activate  # Windows
+source .venv/bin/activate  # Unix
 
-# Activate (Windows)
-.venv\Scripts\activate
-
-# Activate (Linux/Mac)
-source .venv/bin/activate
-
-# Install package
+# Install
 pip install -e ".[dev]"
-```
 
-### 4. Configuration
-
-```bash
-# Copy template
+# Configure
 copy .env.example .env  # Windows
-# cp .env.example .env  # Linux/Mac
+cp .env.example .env  # Unix
 ```
 
 Edit `.env`:
 
-```bash
-# Your academic email (required for OpenAlex polite pool)
-OPENALEX__USER_AGENT=GraphLit/1.0 (mailto:your.email@university.edu)
-
-# Neo4j credentials from step 2
+```ini
+OPENALEX__USER_AGENT=GraphLit/1.0 (mailto:your.email@edu)
 NEO4J__URI=bolt://localhost:7687
 NEO4J__USERNAME=neo4j
-NEO4J__PASSWORD=<password-from-step-2>
-NEO4J__DATABASE=neo4j
-
-# Expansion settings (defaults)
+NEO4J__PASSWORD=<password>
 EXPANSION__MAX_PAPERS=1000
 EXPANSION__MAX_DEPTH=2
-EXPANSION__YEAR_MIN=2015
-EXPANSION__YEAR_MAX=2025
 ```
 
-## Usage
+## Neo4j Setup
 
-### Run Expansion
+Download Neo4j Desktop from neo4j.com/download.
+
+Create local DBMS:
+- Version: 5.x
+- Database: neo4j
+- Bolt: bolt://localhost:7687
+
+Start database before running pipeline.
+
+## Usage
 
 ```bash
 python -m graphlit
 ```
 
-Pipeline stages:
-1. Connects to Neo4j and OpenAlex
-2. Loads seed DOIs from `data/seeds.json`
-3. Resolves DOIs to OpenAlex work IDs
-4. Performs BFS expansion to MAX_DEPTH
-5. Creates citation relationships
-6. Prints statistics
+Pipeline execution:
+1. Load seeds from `data/seeds.json`
+2. Resolve DOIs to OpenAlex IDs
+3. BFS expansion to MAX_DEPTH
+4. Create citation edges
+5. Output statistics
 
-Expected runtime: 5-10 hours for 1000 papers (limited by API rate)
+Expected runtime: 5-10 hours for 1000 papers.
 
-### Verify Results
+## Verification
 
 ```bash
-# Quick stats
-python quick_check.py
-
-# Detailed graph verification
-python verify_graph.py
-
-# Full statistics report
-python full_stats.py
+python quick_check.py      # Summary stats
+python verify_graph.py     # Graph validation
+python full_stats.py       # Detailed report
 ```
 
-Or query Neo4j Browser:
-1. Neo4j Desktop → Open database → "Open Neo4j Browser"
-2. Run: `MATCH (p:Paper) RETURN count(p)`
+Neo4j Browser:
+```cypher
+MATCH (p:Paper) RETURN count(p)
+```
 
-## Neo4j Schema
+## Schema
 
-**Nodes:**
+Nodes:
 - `Paper`: openalex_id, doi, title, year, citations, abstract
 - `Author`: openalex_id, name, orcid, institution
 - `Venue`: openalex_id, name, type, publisher
 - `Topic`: openalex_id, name, level
 
-**Relationships:**
-- `(Paper)-[:CITES]->(Paper)` - citation edges
-- `(Paper)-[:AUTHORED_BY {position}]->(Author)` - authorship order
-- `(Paper)-[:PUBLISHED_IN]->(Venue)` - publication venue
-- `(Paper)-[:BELONGS_TO_TOPIC {score}]->(Topic)` - topic scores
+Relationships:
+- `(Paper)-[:CITES]->(Paper)`
+- `(Paper)-[:AUTHORED_BY {position}]->(Author)`
+- `(Paper)-[:PUBLISHED_IN]->(Venue)`
+- `(Paper)-[:BELONGS_TO_TOPIC {score}]->(Topic)`
 
-**Sample queries:**
+Query examples:
 
 ```cypher
-// Most cited papers
+// Top cited
 MATCH (p:Paper)
 RETURN p.title, p.citations
 ORDER BY p.citations DESC LIMIT 10
 
-// Papers by author
+// By author
 MATCH (p:Paper)-[:AUTHORED_BY]->(a:Author {name: "Jie Zhou"})
 RETURN p.title, p.year
 
-// Citation chains
+// Citation paths
 MATCH path = (p1:Paper)-[:CITES*1..3]->(p2:Paper)
 WHERE p1.title CONTAINS "GNN"
 RETURN path LIMIT 10
@@ -161,60 +120,55 @@ RETURN path LIMIT 10
 
 ## Development
 
-### Code Quality
+Code quality:
 
 ```bash
-# Type checking (must pass)
-mypy --strict src/
-
-# Linting
-ruff check src/ tests/
-
-# Auto-format
-ruff format src/ tests/
+mypy --strict src/          # Type checking
+ruff check src/ tests/      # Lint
+ruff format src/ tests/     # Format
 ```
 
-### Testing
+Testing:
 
 ```bash
-pytest                                    # All tests
-pytest --cov=graphlit --cov-report=term  # With coverage
-pytest tests/test_mapper.py -v           # Specific file
+pytest                                   # All tests
+pytest --cov=graphlit --cov-report=term  # Coverage
+pytest tests/test_mapper.py -v           # Specific
 ```
 
 ## Troubleshooting
 
-**"Cannot connect to Neo4j database"**
-- Check database status in Neo4j Desktop (should show "Active")
-- Verify password in `.env` matches database password
-- Try `neo4j://localhost:7687` instead of `bolt://localhost:7687`
+Neo4j connection errors:
+- Verify database status (Active)
+- Check .env password matches DBMS password
+- Try neo4j:// protocol instead of bolt://
 
-**"Rate limit exceeded"**
-- Pipeline handles this automatically with exponential backoff
-- Persistent errors: lower `OPENALEX__RATE_LIMIT_PER_SECOND` to 8
+Rate limiting:
+- Handled automatically with exponential backoff
+- If persistent, reduce OPENALEX__RATE_LIMIT_PER_SECOND to 8
 
-**"Seed not found in OpenAlex"**
-- Some DOIs may not exist in OpenAlex - this is expected
-- Check `expansion_log.txt` for specific failed DOIs
+Missing seeds:
+- Some DOIs may not exist in OpenAlex
+- Check expansion_log.txt for failures
 - Pipeline continues with available seeds
 
-**Resuming after interruption**
-- Run `python -m graphlit` again
-- Pipeline loads existing papers from Neo4j
-- Only new papers are fetched
+Resume after interruption:
+- Re-run `python -m graphlit`
+- Existing papers loaded from Neo4j
+- Only new papers fetched
 
-## Technology Stack
+## Stack
 
-- Python 3.12+
-- httpx 0.27.0 (async HTTP)
-- neo4j 5.26.0 (graph database driver)
-- pydantic 2.9.2 (configuration)
-- structlog 24.4.0 (logging)
-- rich 13.9.4 (progress bars)
-- aiolimiter 1.2.1 (rate limiting)
+- httpx 0.27.0
+- neo4j 5.26.0
+- pydantic 2.9.2
+- pydantic-settings 2.5.2
+- structlog 24.4.0
+- rich 13.9.4
+- aiolimiter 1.2.1
 
-See `architechture.md` for system design details.
+See architechture.md for design details.
 
 ## License
 
-MIT License
+MIT

@@ -4,6 +4,12 @@
 # Academic files (keep local only)
 backend/new/
 
+# Project documentation (keep local only)
+CLAUDE.md
+IMPROVEMENTS.md
+prompt.md
+Master Prompt.md
+
 # Python
 __pycache__/
 *.py[cod]
