@@ -24,3 +24,8 @@ export async function getCommunityTrending(
 
   return PaperRecommendationsResponseSchema.parse(response.data);
 }
+
+export async function getCommunityCitationNetwork(communityId: number) {
+  const response = await apiClient.get(`/api/v1/recommendations/community/${communityId}/network`);
+  return response.data;
+}
