@@ -45,13 +45,13 @@ export function CitationGraph({ paperId, className }: CitationGraphProps) {
         y: paper.y ?? Math.random() * 600,
       },
       style: {
-        background: getCommunityColor(paper.community),
+        background: getCommunityColor(paper.community ?? 0),
         color: '#fff',
         borderRadius: '12px',
         padding: '10px',
         fontSize: '10px',
-        fontWeight: 'bold',
-        width: Math.max(120, paper.impact_score * 1.5),
+        fontWeight: 'bold' as const,
+        width: Math.max(120, (paper.impact_score ?? 50) * 1.5),
         height: 50,
         border: paper.paper_id === paperId ? '3px solid #f97316' : 'none',
         boxShadow: paper.paper_id === paperId ? '0 0 20px rgba(249, 115, 22, 0.4)' : 'none',
@@ -135,6 +135,5 @@ function getCommunityColor(communityId: number): string {
     '#6366f1',
     '#84cc16',
   ];
-  const defaultColor = colors[0] ?? '#3b82f6';
-  return colors[communityId % colors.length] ?? defaultColor;
+  return colors[communityId % colors.length] || '#3b82f6';
 }

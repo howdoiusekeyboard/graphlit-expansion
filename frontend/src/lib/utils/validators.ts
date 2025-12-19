@@ -45,8 +45,38 @@ export const QueryRequestSchema = z.object({
   limit: z.number().int().min(1).max(100).default(20),
 });
 
+// Paper detail schema
+export const PaperDetailItemSchema = z.object({
+  paper_id: z.string().regex(/^W\d+$/, 'Invalid OpenAlex ID format'),
+  title: z.string().min(1),
+  year: z.number().int().min(1900).max(2100).nullable(),
+  citations: z.number().int().nonnegative(),
+  impact_score: z.number().min(0).max(100).nullable(),
+  abstract: z.string().nullable(),
+  doi: z.string().nullable(),
+  community: z.number().nullable(),
+  topics: z.array(z.string()),
+});
+
+// Community list item schema
+export const CommunityListItemSchema = z.object({
+  id: z.number().int(),
+  paper_count: z.number().int().nonnegative(),
+  avg_impact: z.number().nullable(),
+  top_topics: z.array(z.string()),
+});
+
+// Communities response schema
+export const CommunitiesResponseSchema = z.object({
+  communities: z.array(CommunityListItemSchema),
+  total: z.number().int().nonnegative(),
+});
+
 // Export inferred types
 export type RecommendationItem = z.infer<typeof RecommendationItemSchema>;
 export type PaperRecommendationsResponse = z.infer<typeof PaperRecommendationsResponseSchema>;
+export type PaperDetailItem = z.infer<typeof PaperDetailItemSchema>;
+export type CommunityListItem = z.infer<typeof CommunityListItemSchema>;
+export type CommunitiesResponse = z.infer<typeof CommunitiesResponseSchema>;
 export type QueryRequest = z.infer<typeof QueryRequestSchema>;
 export type SimilarityBreakdown = z.infer<typeof SimilarityBreakdownSchema>;

@@ -55,6 +55,20 @@ class RecommendationItem(BaseModel):
     )
 
 
+class PaperDetailItem(BaseModel):
+    """Full paper metadata."""
+
+    paper_id: str
+    title: str
+    year: int | None
+    citations: int
+    impact_score: float | None
+    abstract: str | None
+    doi: str | None
+    community: int | None
+    topics: list[str] = []
+
+
 class RecommendationsResponse(BaseModel):
     """Response for recommendation endpoints."""
 
@@ -62,6 +76,22 @@ class RecommendationsResponse(BaseModel):
     total: int = Field(..., description="Number of recommendations returned")
     cached: bool = Field(..., description="Whether result was cached")
     cache_ttl_seconds: int | None = Field(None, description="Cache TTL if cached")
+
+
+class CommunityListItem(BaseModel):
+    """Summary of a community cluster."""
+
+    id: int
+    paper_count: int
+    avg_impact: float | None
+    top_topics: list[str] = []
+
+
+class CommunitiesResponse(BaseModel):
+    """Response for communities list endpoint."""
+
+    communities: list[CommunityListItem]
+    total: int
 
 
 class TrendingPaperItem(BaseModel):
@@ -436,3 +466,240 @@ async def get_personalized_feed(
         cached=False,
         cache_ttl_seconds=None,
     )
+
+
+# =============================================================================
+# Endpoint 5: Paper Detail
+# =============================================================================
+
+
+@router.get("/paper/{paper_id}/detail", response_model=PaperDetailItem)
+async def get_paper_detail(
+    paper_id: str,
+    client: Neo4jClient = Depends(get_neo4j_client),
+) -> PaperDetailItem:
+    """Get full metadata for a specific paper."""
+    logger.info("api_get_paper_detail", paper_id=paper_id)
+
+    try:
+        async with client.session() as session:
+            result = await session.run(queries.GET_PAPER, openalex_id=paper_id)
+            record = await result.single()
+
+            if not record:
+                raise HTTPException(status_code=404, detail=f"Paper {paper_id} not found")
+
+            p = record["p"]
+
+            # Fetch topics
+            topic_result = await session.run(
+                "MATCH (p:Paper {openalex_id: $id})-[:BELONGS_TO_TOPIC]->(t:Topic) RETURN t.name AS name",
+                id=paper_id,
+            )
+            topics = [rec["name"] for rec in await topic_result.data()]
+
+            return PaperDetailItem(
+                paper_id=p["openalex_id"],
+                title=p["title"],
+                year=p.get("year"),
+                citations=p.get("citations", 0),
+                impact_score=p.get("impact_score"),
+                abstract=p.get("abstract"),
+                doi=p.get("doi"),
+                community=p.get("community"),
+                topics=topics,
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("paper_detail_failed", paper_id=paper_id, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
+
+
+# =============================================================================
+# Endpoint 5.1: Paper Citation Network
+# =============================================================================
+
+
+class CitationNetworkNode(BaseModel):
+    paper_id: str
+    title: str
+    year: int | None
+    citations: int
+    impact_score: float | None
+    community: int | None
+
+
+class CitationNetworkEdge(BaseModel):
+    source: str
+    target: str
+
+
+class CitationNetworkResponse(BaseModel):
+    papers: list[CitationNetworkNode]
+    citations: list[CitationNetworkEdge]
+
+
+@router.get("/paper/{paper_id}/network", response_model=CitationNetworkResponse)
+async def get_paper_network(
+    paper_id: str,
+    client: Neo4jClient = Depends(get_neo4j_client),
+) -> CitationNetworkResponse:
+    """Get citation network (1-hop) for a specific paper."""
+    logger.info("api_get_paper_network", paper_id=paper_id)
+
+    try:
+        async with client.session() as session:
+            # Query for cited and citing papers
+            query = """
+            MATCH (p:Paper {openalex_id: $id})
+            OPTIONAL MATCH (p)-[:CITES]->(cited:Paper)
+            OPTIONAL MATCH (citing:Paper)-[:CITES]->(p)
+            WITH p, collect(DISTINCT cited) AS cited_list, collect(DISTINCT citing) AS citing_list
+            RETURN p, cited_list, citing_list
+            """
+            result = await session.run(query, id=paper_id)
+            record = await result.single()
+
+            if not record:
+                raise HTTPException(status_code=404, detail=f"Paper {paper_id} not found")
+
+            p = record["p"]
+            cited_list = record["cited_list"]
+            citing_list = record["citing_list"]
+
+            nodes = []
+            edges = []
+
+            # Add central node
+            nodes.append(
+                CitationNetworkNode(
+                    paper_id=p["openalex_id"],
+                    title=p["title"],
+                    year=p.get("year"),
+                    citations=p.get("citations", 0),
+                    impact_score=p.get("impact_score"),
+                    community=p.get("community"),
+                )
+            )
+
+            # Add cited papers and edges
+            for cited in cited_list:
+                if not cited:
+                    continue
+                nodes.append(
+                    CitationNetworkNode(
+                        paper_id=cited["openalex_id"],
+                        title=cited["title"],
+                        year=cited.get("year"),
+                        citations=cited.get("citations", 0),
+                        impact_score=cited.get("impact_score"),
+                        community=cited.get("community"),
+                    )
+                )
+                edges.append(
+                    CitationNetworkEdge(source=p["openalex_id"], target=cited["openalex_id"])
+                )
+
+            # Add citing papers and edges
+            for citing in citing_list:
+                if not citing:
+                    continue
+                nodes.append(
+                    CitationNetworkNode(
+                        paper_id=citing["openalex_id"],
+                        title=citing["title"],
+                        year=citing.get("year"),
+                        citations=citing.get("citations", 0),
+                        impact_score=citing.get("impact_score"),
+                        community=citing.get("community"),
+                    )
+                )
+                edges.append(
+                    CitationNetworkEdge(source=citing["openalex_id"], target=p["openalex_id"])
+                )
+
+            # Deduplicate nodes by paper_id
+            seen_ids = set()
+            unique_nodes = []
+            for node in nodes:
+                if node.paper_id not in seen_ids:
+                    unique_nodes.append(node)
+                    seen_ids.add(node.paper_id)
+
+            return CitationNetworkResponse(papers=unique_nodes, citations=edges)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("paper_network_failed", paper_id=paper_id, error=str(e))
+        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
+
+
+# =============================================================================
+# Endpoint 6: Communities List
+# =============================================================================
+
+
+@router.get("/communities", response_model=CommunitiesResponse)
+async def get_communities(
+    client: Neo4jClient = Depends(get_neo4j_client),
+) -> CommunitiesResponse:
+    """Get all detected communities with summary stats."""
+    logger.info("api_get_communities")
+
+    try:
+        async with client.session() as session:
+            # Query for community stats and top topics
+            query = """
+            MATCH (p:Paper)
+            WHERE p.community IS NOT NULL
+            WITH p.community AS comm_id, count(p) AS paper_count, avg(p.impact_score) AS avg_impact
+            MATCH (p2:Paper {community: comm_id})-[:BELONGS_TO_TOPIC]->(t:Topic)
+            WITH comm_id, paper_count, avg_impact, t.name AS topic_name, count(p2) AS topic_weight
+            ORDER BY topic_weight DESC
+            WITH comm_id, paper_count, avg_impact, collect(topic_name)[0..5] AS top_topics
+            RETURN comm_id, paper_count, avg_impact, top_topics
+            ORDER BY comm_id
+            """
+            result = await session.run(query)
+            records = await result.data()
+
+            communities = [
+                CommunityListItem(
+                    id=rec["comm_id"],
+                    paper_count=rec["paper_count"],
+                    avg_impact=rec["avg_impact"],
+                    top_topics=rec["top_topics"],
+                )
+                for rec in records
+            ]
+
+            return CommunitiesResponse(communities=communities, total=len(communities))
+
+    except Exception as e:
+        logger.error("get_communities_failed", error=str(e))
+        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
+
+
+# =============================================================================
+# Endpoint 7: Track Paper View
+# =============================================================================
+
+
+class ViewTrackRequest(BaseModel):
+    """Request for tracking a paper view."""
+
+    user_session_id: str
+    paper_id: str
+
+
+@router.post("/track/view", status_code=204)
+async def track_view(
+    request: ViewTrackRequest,
+) -> None:
+    """Track a paper view for personalization (placeholder)."""
+    logger.info("api_track_view", **request.model_dump())
+    # In a real app, we'd store this in Redis or Neo4j
+    return

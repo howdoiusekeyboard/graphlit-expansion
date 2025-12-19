@@ -1,10 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import {
-  getPaperRecommendations,
-  getPersonalizedFeed,
-  queryRecommendations,
-  trackPaperView,
-} from '@/lib/api/recommendations';
+import { getPaperRecommendations, queryRecommendations, trackPaperView } from '@/lib/api/papers';
+import { getPersonalizedFeed } from '@/lib/api/recommendations';
 import { getOrCreateSessionId } from '@/lib/utils/session';
 import type { QueryRequest } from '@/lib/utils/validators';
 

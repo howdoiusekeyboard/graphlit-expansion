@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { JetBrains_Mono } from 'next/font/google';
 import './globals.css';
+import { Footer } from '@/components/layout/Footer';
 import { Navbar } from '@/components/layout/Navbar';
 import { SessionManager } from '@/components/layout/SessionManager';
 import { QueryProvider } from '@/components/providers/QueryProvider';
@@ -28,14 +29,8 @@ export default function RootLayout({
         <QueryProvider>
           <SessionManager />
           <Navbar />
-          <main className="flex-1 container py-8">{children}</main>
-          <footer className="border-t py-6 bg-muted/20">
-            <div className="container text-center text-sm text-muted-foreground">
-              <p>
-                © 2025 GraphLit ResearchRadar. Powered by OpenAlex & Louvain Community Detection.
-              </p>
-            </div>
-          </footer>
+          <main className="flex-1 container px-4 mx-auto py-12">{children}</main>
+          <Footer />
         </QueryProvider>
       </body>
     </html>
