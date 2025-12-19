@@ -24,9 +24,9 @@ Build a system that is:
 ### Core Framework & Runtime
 ```json
 {
-  "next": "16.0.1",              // React framework with App Router, RSC, Server Actions
-  "react": "19.2.0",              // Latest stable with enhanced RSC support
-  "react-dom": "19.2.0",
+  "next": "16.1.0",              // React framework with App Router, RSC, Server Actions
+  "react": "19.2.3",              // Latest stable with enhanced RSC support
+  "react-dom": "19.2.3",
   "typescript": "5.7.2",          // Strict mode enabled
   "bun": "1.3.5"                  // Package manager + runtime (user specified)
 }
@@ -35,20 +35,20 @@ Build a system that is:
 ### Styling & UI Components
 ```json
 {
-  "tailwindcss": "4.1.0",         // Latest v4 with new @theme directive
-  "shadcn/ui": "3.6.2",           // Accessible component library (Radix UI primitives)
+  "tailwindcss": "4.0.0",         // Stable v4 with CSS-first configuration
+  "shadcn/ui": "latest",          // Accessible component library (CLI-based, Lyra style)
   "@radix-ui/react-*": "latest",  // Unstyled accessible primitives
   "lucide-react": "latest",       // Icon system (15,000+ icons)
-  "tailwindcss-animate": "latest" // Animation utilities for Tailwind
+  "tw-animate-css": "latest"      // Animation utilities for Tailwind v4
 }
 ```
 
 ### Data Fetching & State Management
 ```json
 {
-  "@tanstack/react-query": "5.62.8",  // Async state management, caching, mutations
-  "zustand": "5.0.9",                  // Lightweight global state (UI state only)
-  "zod": "4.0.0",                      // Runtime type validation & schema generation
+  "@tanstack/react-query": "5.64.0",  // Async state management, caching, mutations
+  "zustand": "5.0.2",                  // Lightweight global state (UI state only)
+  "zod": "4.2.1",                      // Runtime type validation & schema generation
   "axios": "1.7.9"                     // HTTP client (or use native fetch)
 }
 ```
@@ -56,19 +56,18 @@ Build a system that is:
 ### Data Visualization & Graphs
 ```json
 {
-  "recharts": "3.5.1",           // Charts (bar, line, pie, area)
-  "reactflow": "12.10.0",        // Interactive node-based graphs (citation networks)
-  "@xyflow/react": "12.10.0"     // React Flow v12 package name
+  "recharts": "3.5.1",           // Charts (bar, line, pie, area) - Latest v3
+  "@xyflow/react": "12.3.0"      // Interactive node-based graphs (citation networks)
 }
 ```
 
 ### Code Quality & Tooling
 ```json
 {
-  "@biomejs/biome": "2.3.10",    // Fast linter + formatter (replaces ESLint + Prettier)
-  "@types/node": "latest",
-  "@types/react": "latest",
-  "@types/react-dom": "latest"
+  "@biomejs/biome": "2.3.10",    // Fast linter + formatter with plugins (replaces ESLint + Prettier)
+  "@types/node": "^22.10.0",
+  "@types/react": "^19.0.0",
+  "@types/react-dom": "^19.0.0"
 }
 ```
 
@@ -880,18 +879,21 @@ function getOrCreateSessionId(): string {
 ```typescript
 'use client';
 
-import { useCallback } from 'react';
-import ReactFlow, {
-  Node,
-  Edge,
+import { useCallback, useEffect } from 'react';
+import {
+  ReactFlow,
   Background,
   Controls,
   MiniMap,
   useNodesState,
   useEdgesState,
   ConnectionMode,
+  type Node,
+  type Edge,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
+import { Alert } from '@/components/ui/alert';
+import { cn } from '@/lib/utils/cn';
 import { usePaperCitationNetwork } from '@/lib/hooks/usePapers';
 
 interface CitationGraphProps {
@@ -902,8 +904,8 @@ interface CitationGraphProps {
 export function CitationGraph({ paperId, className }: CitationGraphProps) {
   const { data, isLoading, error } = usePaperCitationNetwork(paperId);
 
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   // Transform API data to React Flow nodes/edges
   const transformData = useCallback(() => {
@@ -1085,7 +1087,7 @@ export function PaperCard({ paper, showSimilarity = false, onTrackView }: PaperC
 ```typescript
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useDebounce } from 'use-debounce';
 import { Input } from '@/components/ui/input';
@@ -1170,30 +1172,30 @@ export function PaperListSkeleton({ count = 5 }: { count?: number }) {
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "biome check .",
-    "lint:fix": "biome check --write .",
-    "format": "biome format --write .",
-    "type-check": "tsc --noEmit"
+    "dev": "bunx --bun next dev",
+    "build": "bunx --bun next build",
+    "start": "bunx --bun next start",
+    "lint": "bunx --bun biome check .",
+    "lint:fix": "bunx --bun biome check --write .",
+    "format": "bunx --bun biome format --write .",
+    "type-check": "bunx --bun tsc --noEmit"
   },
   "dependencies": {
-    "next": "16.0.1",
-    "react": "19.2.0",
-    "react-dom": "19.2.0",
-    "@tanstack/react-query": "5.62.8",
-    "@xyflow/react": "12.10.0",
+    "next": "16.1.0",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "@tanstack/react-query": "5.64.0",
+    "@xyflow/react": "12.3.0",
     "axios": "1.7.9",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.468.0",
     "recharts": "3.5.1",
     "tailwind-merge": "^2.7.1",
-    "tailwindcss-animate": "^1.0.7",
+    "tw-animate-css": "^1.0.0",
     "use-debounce": "^10.0.4",
-    "zod": "^4.0.0",
-    "zustand": "5.0.9",
+    "zod": "4.2.1",
+    "zustand": "5.0.2",
     "@radix-ui/react-alert-dialog": "^1.1.4",
     "@radix-ui/react-dialog": "^1.1.4",
     "@radix-ui/react-dropdown-menu": "^2.1.4",
@@ -1203,10 +1205,10 @@ export function PaperListSkeleton({ count = 5 }: { count?: number }) {
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.10",
-    "@types/node": "^22.10.5",
-    "@types/react": "^19.0.6",
-    "@types/react-dom": "^19.0.3",
-    "tailwindcss": "4.1.0",
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "tailwindcss": "4.0.0",
     "typescript": "5.7.2"
   }
 }
@@ -1270,9 +1272,50 @@ export function PaperListSkeleton({ count = 5 }: { count?: number }) {
 
 ---
 
-### `tailwind.config.ts` (Tailwind CSS 4.1)
+### Tailwind CSS v4 Configuration
+
+**Note**: Tailwind CSS v4 uses CSS-first configuration. No `tailwind.config.ts` needed!
+
+Configuration is done directly in `styles/globals.css`:
+
+```css
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+/* Theme configuration via CSS custom properties */
+@theme {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  /* Animation keyframes handled by tw-animate-css */
+}
+```
+
+**If you need a config file** (for IDE support or plugins):
 
 ```typescript
+// tailwind.config.ts (optional - for IDE support)
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
@@ -1281,65 +1324,6 @@ const config: Config = {
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
   ],
-  theme: {
-    extend: {
-      colors: {
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
-        primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))',
-        },
-        secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))',
-        },
-        destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))',
-        },
-        muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))',
-        },
-        accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))',
-        },
-        popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))',
-        },
-        card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))',
-        },
-      },
-      borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)',
-      },
-      keyframes: {
-        'accordion-down': {
-          from: { height: '0' },
-          to: { height: 'var(--radix-accordion-content-height)' },
-        },
-        'accordion-up': {
-          from: { height: 'var(--radix-accordion-content-height)' },
-          to: { height: '0' },
-        },
-      },
-      animation: {
-        'accordion-down': 'accordion-down 0.2s ease-out',
-        'accordion-up': 'accordion-up 0.2s ease-out',
-      },
-    },
-  },
-  plugins: [require('tailwindcss-animate')],
 };
 
 export default config;
@@ -1415,50 +1399,61 @@ export default nextConfig;
 ```css
 @import 'tailwindcss';
 
+/* Lyra style with Zinc base + Orange accent */
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 240 10% 3.9%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 240 10% 3.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 24.6 95% 53.1%;
+    --primary-foreground: 60 9.1% 97.8%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --destructive-foreground: 60 9.1% 97.8%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 24.6 95% 53.1%;
     --radius: 0.5rem;
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 20.5 90.2% 48.2%;
+    --primary-foreground: 60 9.1% 97.8%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 20.5 90.2% 48.2%;
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
   }
 }
 
@@ -1468,6 +1463,7 @@ export default nextConfig;
   }
   body {
     @apply bg-background text-foreground;
+    font-family: 'JetBrains Mono', monospace;
     font-feature-settings: 'rlig' 1, 'calt' 1;
   }
 }
@@ -1487,7 +1483,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ---
 
-## 🚀 INITIALIZATION COMMANDS
+## 🚀 INITIALIZATION COMMANDS (BUN ONLY - NO NODE.JS)
 
 ```bash
 # 1. Navigate to project root
@@ -1497,17 +1493,19 @@ cd graphit
 mkdir frontend
 cd frontend
 
-# 3. Initialize Next.js 16 with Bun
-bun create next-app@16.0.1 . --typescript --tailwind --app --use-bun
+# 3. Initialize with shadcn preset (Lyra style, Zinc/Orange, JetBrains Mono)
+bunx --bun shadcn@latest create \
+  --preset "https://ui.shadcn.com/init?base=base&style=lyra&baseColor=zinc&theme=orange&iconLibrary=lucide&font=jetbrains-mono&menuAccent=subtle&menuColor=default&radius=default&template=next" \
+  --template next
 
-# 4. Install all dependencies (exact versions)
-bun add react@19.2.0 react-dom@19.2.0
-bun add @tanstack/react-query@5.62.8
-bun add @xyflow/react@12.10.0
+# 4. Install core dependencies (exact versions)
+bun add react@19.2.3 react-dom@19.2.3
+bun add @tanstack/react-query@5.64.0
+bun add @xyflow/react@12.3.0
 bun add recharts@3.5.1
 bun add axios@1.7.9
-bun add zod@4.0.0
-bun add zustand@5.0.9
+bun add zod@4.2.1
+bun add zustand@5.0.2
 bun add clsx tailwind-merge
 bun add lucide-react
 bun add use-debounce
@@ -1524,55 +1522,42 @@ bun add @radix-ui/react-tabs
 
 # 6. Install dev dependencies
 bun add -D @biomejs/biome@2.3.10
-bun add -D @types/node@latest
-bun add -D @types/react@latest
-bun add -D @types/react-dom@latest
-bun add -D tailwindcss@4.1.0
+bun add -D @types/node@22.10.0
+bun add -D @types/react@19.0.0
+bun add -D @types/react-dom@19.0.0
+bun add -D tailwindcss@4.0.0
 bun add -D typescript@5.7.2
-bun add -D tailwindcss-animate
+bun add -D tw-animate-css
 
-# 7. Initialize shadcn/ui
-bunx shadcn@latest init
+# 7. Add additional shadcn/ui components
+bunx --bun shadcn@latest add button card input alert dialog badge skeleton slider select tabs
 
-# When prompted:
-# - TypeScript: Yes
-# - Style: Default
-# - Base color: Slate
-# - CSS variables: Yes
-# - Tailwind prefix: None
-# - Import alias: @/*
+# 8. Initialize Biome
+bunx --bun @biomejs/biome init
 
-# 8. Add shadcn/ui components
-bunx shadcn@latest add button
-bunx shadcn@latest add card
-bunx shadcn@latest add input
-bunx shadcn@latest add alert
-bunx shadcn@latest add dialog
-bunx shadcn@latest add badge
-bunx shadcn@latest add skeleton
-bunx shadcn@latest add slider
-bunx shadcn@latest add select
-bunx shadcn@latest add tabs
+# 9. Remove conflicting tools (Biome replaces ESLint/Prettier)
+bun remove eslint eslint-config-next prettier 2>/dev/null || true
 
-# 9. Initialize Biome
-bunx @biomejs/biome init
+# 10. Update package.json scripts
+# Replace scripts section with:
+# {
+#   "dev": "bunx --bun next dev",
+#   "build": "bunx --bun next build",
+#   "start": "bunx --bun next start",
+#   "lint": "bunx --bun biome check .",
+#   "lint:fix": "bunx --bun biome check --write .",
+#   "format": "bunx --bun biome format --write .",
+#   "type-check": "bunx --bun tsc --noEmit"
+# }
 
-# 10. Remove conflicting tools (Biome replaces ESLint/Prettier)
-bun remove eslint eslint-config-next prettier
-
-# 11. Update package.json scripts (add these)
-# "lint": "biome check .",
-# "lint:fix": "biome check --write .",
-# "format": "biome format --write .",
-# "type-check": "tsc --noEmit"
-
-# 12. Create environment file
+# 11. Create environment file
 cp .env.example .env.local
 # Edit .env.local: NEXT_PUBLIC_API_URL=http://localhost:8000
 
-# 13. Verify installation
+# 12. Verify installation (all using Bun)
 bun run type-check  # Should pass with 0 errors
 bun run lint        # Should pass with 0 violations
+bun run dev         # Start dev server on http://localhost:3000
 ```
 
 ---
@@ -1685,20 +1670,22 @@ bun run start
 
 ## 🎨 DESIGN SYSTEM & STYLE GUIDE
 
-### Color Palette
-- **Primary (Blue)**: `hsl(221.2, 83.2%, 53.3%)` - Trust, academic, interactive elements
-- **Secondary (Slate)**: `hsl(210, 40%, 96.1%)` - Backgrounds, cards
-- **Success (Green)**: `hsl(142, 71%, 45%)` - High impact scores, positive actions
-- **Warning (Amber)**: `hsl(38, 92%, 50%)` - Medium impact, alerts
+### Color Palette (Lyra Style - Zinc/Orange)
+- **Primary (Orange)**: `hsl(24.6, 95%, 53.1%)` - CTAs, links, interactive elements
+- **Secondary (Zinc)**: `hsl(240, 4.8%, 95.9%)` - Backgrounds, cards
+- **Success (Teal)**: `hsl(173, 58%, 39%)` - High impact scores, positive actions
+- **Warning (Amber)**: `hsl(43, 74%, 66%)` - Medium impact, alerts
 - **Error (Red)**: `hsl(0, 84.2%, 60.2%)` - Low impact, errors
+- **Chart Colors**: Orange, Teal, Navy, Gold, Coral (for data visualization)
 
 ### Typography
-- **Headings**: Inter font family (via Next.js font optimization)
+- **Font Family**: JetBrains Mono (monospace) - via Next.js font optimization
   - H1: 2.25rem (36px), font-weight 700
   - H2: 1.875rem (30px), font-weight 600
   - H3: 1.5rem (24px), font-weight 600
 - **Body**: 1rem (16px), font-weight 400, line-height 1.5
 - **Small Text**: 0.875rem (14px) for metadata, captions
+- **Code**: Same font (monospace project)
 
 ### Spacing Scale (Tailwind)
 - `gap-2` (0.5rem/8px): Tight spacing (icon + text)
