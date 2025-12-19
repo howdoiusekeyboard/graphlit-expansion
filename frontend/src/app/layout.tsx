@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { JetBrains_Mono } from 'next/font/google';
 import './globals.css';
 import { Navbar } from '@/components/layout/Navbar';
+import { SessionManager } from '@/components/layout/SessionManager';
 import { QueryProvider } from '@/components/providers/QueryProvider';
 
 const jetbrainsMono = JetBrains_Mono({
@@ -25,6 +26,7 @@ export default function RootLayout({
         className={`${jetbrainsMono.variable} font-mono antialiased min-h-screen flex flex-col`}
       >
         <QueryProvider>
+          <SessionManager />
           <Navbar />
           <main className="flex-1 container py-8">{children}</main>
           <footer className="border-t py-6 bg-muted/20">

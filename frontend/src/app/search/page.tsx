@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import { ChevronDown, Filter, LayoutGrid, Search, Table as TableIcon, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useState } from 'react';
 import { PaperCard } from '@/components/paper/PaperCard';
 import { PaperGridSkeleton } from '@/components/paper/PaperCardSkeleton';
 import { Badge } from '@/components/ui/badge';
@@ -23,11 +23,12 @@ function SearchContent() {
   const { mutate: search, data, isPending } = useQueryRecommendations();
 
   const handleSearch = useCallback(() => {
+    if (topics.length === 0) return;
     search({
       topics,
       year_min: yearRange[0],
       year_max: yearRange[1],
-      limit
+      limit,
     });
   }, [search, topics, yearRange, limit]);
 
@@ -214,7 +215,11 @@ function SearchContent() {
 
 export default function SearchPage() {
   return (
-    <Suspense fallback={<div>Loading discovery engine...</div>}>
+    <Suspense
+      fallback={
+        <div className="container py-20 text-center font-bold">Loading discovery engine...</div>
+      }
+    >
       <SearchContent />
     </Suspense>
   );
