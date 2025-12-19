@@ -27,7 +27,7 @@ Build a system that is:
   "next": "16.1.0",              // React framework with App Router, RSC, Server Actions
   "react": "19.2.3",              // Latest stable with enhanced RSC support
   "react-dom": "19.2.3",
-  "typescript": "5.7.2",          // Strict mode enabled
+  "typescript": "5.9.3",          // Strict mode enabled
   "bun": "1.3.5"                  // Package manager + runtime (user specified)
 }
 ```
@@ -35,11 +35,11 @@ Build a system that is:
 ### Styling & UI Components
 ```json
 {
-  "tailwindcss": "4.0.0",         // Stable v4 with CSS-first configuration
+  "tailwindcss": "4.1.0",         // Stable v4 with CSS-first configuration
   "shadcn/ui": "latest",          // Accessible component library (CLI-based, Lyra style)
   "@radix-ui/react-*": "latest",  // Unstyled accessible primitives
   "lucide-react": "latest",       // Icon system (15,000+ icons)
-  "tw-animate-css": "latest"      // Animation utilities for Tailwind v4
+  "tailwindcss-animate": "latest"      // Animation utilities for Tailwind v4
 }
 ```
 
@@ -47,9 +47,9 @@ Build a system that is:
 ```json
 {
   "@tanstack/react-query": "5.64.0",  // Async state management, caching, mutations
-  "zustand": "5.0.2",                  // Lightweight global state (UI state only)
+  "zustand": "5.0.9",                  // Lightweight global state (UI state only)
   "zod": "4.2.1",                      // Runtime type validation & schema generation
-  "axios": "1.7.9"                     // HTTP client (or use native fetch)
+  "axios": "1.13.2"                     // HTTP client (or use native fetch)
 }
 ```
 
@@ -65,9 +65,9 @@ Build a system that is:
 ```json
 {
   "@biomejs/biome": "2.3.10",    // Fast linter + formatter with plugins (replaces ESLint + Prettier)
-  "@types/node": "^22.10.0",
-  "@types/react": "^19.0.0",
-  "@types/react-dom": "^19.0.0"
+  "@types/node": "latest",
+  "@types/react": "latest",
+  "@types/react-dom": "latest"
 }
 ```
 
@@ -1172,30 +1172,30 @@ export function PaperListSkeleton({ count = 5 }: { count?: number }) {
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "bunx --bun next dev",
-    "build": "bunx --bun next build",
-    "start": "bunx --bun next start",
-    "lint": "bunx --bun biome check .",
-    "lint:fix": "bunx --bun biome check --write .",
-    "format": "bunx --bun biome format --write .",
-    "type-check": "bunx --bun tsc --noEmit"
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "next": "16.1.0",
     "react": "19.2.3",
     "react-dom": "19.2.3",
     "@tanstack/react-query": "5.64.0",
-    "@xyflow/react": "12.3.0",
-    "axios": "1.7.9",
+    "@xyflow/react": "12.10.0",
+    "axios": "1.13.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "lucide-react": "^0.468.0",
     "recharts": "3.5.1",
     "tailwind-merge": "^2.7.1",
-    "tw-animate-css": "^1.0.0",
+    "tailwindcss-animate": "^1.0.0",
     "use-debounce": "^10.0.4",
     "zod": "4.2.1",
-    "zustand": "5.0.2",
+    "zustand": "5.0.9",
     "@radix-ui/react-alert-dialog": "^1.1.4",
     "@radix-ui/react-dialog": "^1.1.4",
     "@radix-ui/react-dropdown-menu": "^2.1.4",
@@ -1205,11 +1205,11 @@ export function PaperListSkeleton({ count = 5 }: { count?: number }) {
   },
   "devDependencies": {
     "@biomejs/biome": "2.3.10",
-    "@types/node": "^22.10.0",
+    "@types/node": "24.12.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "tailwindcss": "4.0.0",
-    "typescript": "5.7.2"
+    "tailwindcss": "4.1.18",
+    "typescript": "5.9.3"
   }
 }
 ```
@@ -1272,50 +1272,11 @@ export function PaperListSkeleton({ count = 5 }: { count?: number }) {
 
 ---
 
-### Tailwind CSS v4 Configuration
+### `tailwind.config.ts` (Tailwind CSS 4.1)
 
-**Note**: Tailwind CSS v4 uses CSS-first configuration. No `tailwind.config.ts` needed!
-
-Configuration is done directly in `styles/globals.css`:
-
-```css
-@import 'tailwindcss';
-@import 'tw-animate-css';
-
-/* Theme configuration via CSS custom properties */
-@theme {
-  --color-border: hsl(var(--border));
-  --color-input: hsl(var(--input));
-  --color-ring: hsl(var(--ring));
-  --color-background: hsl(var(--background));
-  --color-foreground: hsl(var(--foreground));
-  --color-primary: hsl(var(--primary));
-  --color-primary-foreground: hsl(var(--primary-foreground));
-  --color-secondary: hsl(var(--secondary));
-  --color-secondary-foreground: hsl(var(--secondary-foreground));
-  --color-destructive: hsl(var(--destructive));
-  --color-destructive-foreground: hsl(var(--destructive-foreground));
-  --color-muted: hsl(var(--muted));
-  --color-muted-foreground: hsl(var(--muted-foreground));
-  --color-accent: hsl(var(--accent));
-  --color-accent-foreground: hsl(var(--accent-foreground));
-  --color-popover: hsl(var(--popover));
-  --color-popover-foreground: hsl(var(--popover-foreground));
-  --color-card: hsl(var(--card));
-  --color-card-foreground: hsl(var(--card-foreground));
-
-  --radius-lg: var(--radius);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-sm: calc(var(--radius) - 4px);
-
-  /* Animation keyframes handled by tw-animate-css */
-}
-```
-
-**If you need a config file** (for IDE support or plugins):
 
 ```typescript
-// tailwind.config.ts (optional - for IDE support)
+
 import type { Config } from 'tailwindcss';
 
 const config: Config = {
@@ -1324,6 +1285,65 @@ const config: Config = {
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
   ],
+theme: {
+    extend: {
+      colors: {
+        border: 'hsl(var(--border))',
+        input: 'hsl(var(--input))',
+        ring: 'hsl(var(--ring))',
+        background: 'hsl(var(--background))',
+        foreground: 'hsl(var(--foreground))',
+        primary: {
+          DEFAULT: 'hsl(var(--primary))',
+          foreground: 'hsl(var(--primary-foreground))',
+        },
+        secondary: {
+          DEFAULT: 'hsl(var(--secondary))',
+          foreground: 'hsl(var(--secondary-foreground))',
+        },
+        destructive: {
+          DEFAULT: 'hsl(var(--destructive))',
+          foreground: 'hsl(var(--destructive-foreground))',
+        },
+        muted: {
+          DEFAULT: 'hsl(var(--muted))',
+          foreground: 'hsl(var(--muted-foreground))',
+        },
+        accent: {
+          DEFAULT: 'hsl(var(--accent))',
+          foreground: 'hsl(var(--accent-foreground))',
+        },
+        popover: {
+          DEFAULT: 'hsl(var(--popover))',
+          foreground: 'hsl(var(--popover-foreground))',
+        },
+        card: {
+          DEFAULT: 'hsl(var(--card))',
+          foreground: 'hsl(var(--card-foreground))',
+        },
+      },
+      borderRadius: {
+        lg: 'var(--radius)',
+        md: 'calc(var(--radius) - 2px)',
+        sm: 'calc(var(--radius) - 4px)',
+      },
+      keyframes: {
+        'accordion-down': {
+          from: { height: '0' },
+          to: { height: 'var(--radix-accordion-content-height)' },
+        },
+        'accordion-up': {
+          from: { height: 'var(--radix-accordion-content-height)' },
+          to: { height: '0' },
+        },
+      },
+      animation: {
+        'accordion-down': 'accordion-down 0.2s ease-out',
+        'accordion-up': 'accordion-up 0.2s ease-out',
+      },
+    },
+  },
+  plugins: [require('tailwindcss-animate')],
 };
 
 export default config;
@@ -1483,7 +1503,7 @@ NEXT_PUBLIC_API_URL=http://localhost:8000
 
 ---
 
-## 🚀 INITIALIZATION COMMANDS (BUN ONLY - NO NODE.JS)
+## 🚀 INITIALIZATION COMMANDS
 
 ```bash
 # 1. Navigate to project root
@@ -1503,9 +1523,9 @@ bun add react@19.2.3 react-dom@19.2.3
 bun add @tanstack/react-query@5.64.0
 bun add @xyflow/react@12.3.0
 bun add recharts@3.5.1
-bun add axios@1.7.9
+bun add axios@1.13.2
 bun add zod@4.2.1
-bun add zustand@5.0.2
+bun add zustand@5.0.9
 bun add clsx tailwind-merge
 bun add lucide-react
 bun add use-debounce
@@ -1522,12 +1542,12 @@ bun add @radix-ui/react-tabs
 
 # 6. Install dev dependencies
 bun add -D @biomejs/biome@2.3.10
-bun add -D @types/node@22.10.0
-bun add -D @types/react@19.0.0
-bun add -D @types/react-dom@19.0.0
-bun add -D tailwindcss@4.0.0
-bun add -D typescript@5.7.2
-bun add -D tw-animate-css
+bun add -D @types/node@latest
+bun add -D @types/react@latest
+bun add -D @types/react-dom@latest
+bun add -D tailwindcss@4.1.18
+bun add -D typescript@5.9.3
+bun add -D tailwindcss-animate
 
 # 7. Add additional shadcn/ui components
 bunx --bun shadcn@latest add button card input alert dialog badge skeleton slider select tabs
@@ -1541,13 +1561,13 @@ bun remove eslint eslint-config-next prettier 2>/dev/null || true
 # 10. Update package.json scripts
 # Replace scripts section with:
 # {
-#   "dev": "bunx --bun next dev",
-#   "build": "bunx --bun next build",
-#   "start": "bunx --bun next start",
-#   "lint": "bunx --bun biome check .",
-#   "lint:fix": "bunx --bun biome check --write .",
-#   "format": "bunx --bun biome format --write .",
-#   "type-check": "bunx --bun tsc --noEmit"
+#   "dev": "next dev",
+#   "build": "next build",
+#   "start": "next start",
+#   "lint": "biome check .",
+#   "lint:fix": "biome check --write .",
+#   "format": "biome format --write .",
+#   "type-check": "tsc --noEmit"
 # }
 
 # 11. Create environment file
