@@ -1,8 +1,8 @@
 """FastAPI dependency injection for GraphLit ResearchRadar API.
 
-This module provides singleton dependencies for Neo4j, Redis, and recommendation
-services. All dependencies are lazily initialized and properly cleaned up on
-application shutdown.
+This module provides singleton dependencies for Neo4j, in-memory cache, and
+recommendation services. All dependencies are lazily initialized and properly
+cleaned up on application shutdown.
 
 Usage:
     from fastapi import Depends
@@ -22,7 +22,7 @@ from typing import Any
 
 import structlog
 
-from graphlit.cache.redis_cache import RecommendationCache
+from graphlit.cache.memory_cache import InMemoryCache
 from graphlit.config import get_settings
 from graphlit.database.neo4j_client import Neo4jClient
 from graphlit.recommendations.collaborative_filter import CollaborativeFilterRecommender
@@ -31,7 +31,7 @@ logger = structlog.get_logger(__name__)
 
 # Singleton instances (initialized on first request)
 _neo4j_client: Neo4jClient | None = None
-_redis_cache: RecommendationCache | None = None
+_memory_cache: InMemoryCache | None = None
 _recommender: CollaborativeFilterRecommender | None = None
 
 
@@ -67,37 +67,33 @@ async def get_neo4j_client() -> Neo4jClient:
 
 
 # =============================================================================
-# Redis Cache Dependency
+# In-Memory Cache Dependency
 # =============================================================================
 
 
-async def get_redis_cache() -> RecommendationCache:
-    """Get or create singleton Redis cache.
+async def get_cache() -> InMemoryCache:
+    """Get or create singleton in-memory cache.
 
     Returns:
-        RecommendationCache instance (may be unavailable if Redis is down).
+        InMemoryCache instance (always available).
 
     Note:
-        This never raises an exception - Redis is optional and gracefully
-        degrades when unavailable.
+        This cache is in-memory only and will be cleared on application restart.
+        User profiles are persisted to Neo4j separately.
     """
-    global _redis_cache
+    global _memory_cache
 
-    if _redis_cache is None:
-        settings = get_settings()
-
-        logger.info("initializing_redis_cache")
-        _redis_cache = RecommendationCache(settings.redis)
-
-        # Attempt connection (best-effort)
-        await _redis_cache.connect()
+    if _memory_cache is None:
+        logger.info("initializing_memory_cache")
+        _memory_cache = InMemoryCache(maxsize=1000, ttl=3600)
 
         logger.info(
-            "redis_cache_initialized",
-            available=_redis_cache.available,
+            "memory_cache_initialized",
+            maxsize=_memory_cache.maxsize,
+            ttl=_memory_cache.default_ttl,
         )
 
-    return _redis_cache
+    return _memory_cache
 
 
 # =============================================================================
@@ -138,14 +134,14 @@ async def shutdown_connections() -> None:
 
     This should be called from the FastAPI lifespan context manager.
     """
-    global _neo4j_client, _redis_cache, _recommender
+    global _neo4j_client, _memory_cache, _recommender
 
     logger.info("shutting_down_connections")
 
-    # Close Redis cache
-    if _redis_cache is not None:
-        await _redis_cache.close()
-        _redis_cache = None
+    # Clear in-memory cache
+    if _memory_cache is not None:
+        await _memory_cache.clear()
+        _memory_cache = None
 
     # Close Neo4j client
     if _neo4j_client is not None:

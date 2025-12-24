@@ -1,25 +1,23 @@
 """Recommendation API endpoints.
 
 This module provides REST API endpoints for paper recommendations using
-the collaborative filtering engine with Redis caching.
+the collaborative filtering engine with in-memory caching and Neo4j persistence.
 
 Endpoints:
 - GET /paper/{paper_id} - Recommendations for a specific paper
 - POST /query - Query-based recommendations
 - GET /community/{community_id}/trending - Trending papers in community
-- GET /feed/{user_session_id} - Personalized user feed (placeholder)
+- GET /feed/{user_session_id} - Personalized user feed
 """
 
 from __future__ import annotations
-
-from typing import Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from graphlit.api.dependencies import get_neo4j_client, get_recommender, get_redis_cache
-from graphlit.cache.redis_cache import RecommendationCache
+from graphlit.api.dependencies import get_cache, get_neo4j_client, get_recommender
+from graphlit.cache.memory_cache import InMemoryCache
 from graphlit.database import queries
 from graphlit.database.neo4j_client import Neo4jClient
 from graphlit.recommendations.collaborative_filter import (
@@ -128,7 +126,7 @@ async def get_paper_recommendations(
         0.3, ge=0.0, le=1.0, description="Minimum similarity threshold"
     ),
     recommender: CollaborativeFilterRecommender = Depends(get_recommender),
-    cache: RecommendationCache = Depends(get_redis_cache),
+    cache: InMemoryCache = Depends(get_cache),
 ) -> RecommendationsResponse:
     """Get personalized recommendations for a specific paper.
 
@@ -230,12 +228,12 @@ class QueryRequest(BaseModel):
 async def query_recommendations(
     request: QueryRequest,
     client: Neo4jClient = Depends(get_neo4j_client),
-    cache: RecommendationCache = Depends(get_redis_cache),
+    cache: InMemoryCache = Depends(get_cache),
 ) -> RecommendationsResponse:
-    """Get recommendations based on query criteria (placeholder).
+    """Get recommendations based on query criteria.
 
-    Note: This is a simplified implementation that returns top papers by impact score.
-    Full query-based filtering will be implemented in a future iteration.
+    Filters papers by topics and year range, returning high-impact papers
+    that match the specified criteria. Results are cached for 1 hour.
 
     Args:
         request: Query parameters (topics, year range, exclusions)
@@ -243,7 +241,8 @@ async def query_recommendations(
         cache: Injected Redis cache
 
     Returns:
-        RecommendationsResponse with query results.
+        RecommendationsResponse with filtered papers ranked by impact score.
+        Similarity score reflects topic match quality.
     """
     logger.info("api_query_recommendations", request=request.model_dump())
 
@@ -268,16 +267,19 @@ async def query_recommendations(
             cache_ttl_seconds=3600,
         )
 
-    # Fetch top papers (simplified - no topic filtering yet)
+    # Fetch papers with topic and year filtering
     try:
         async with client.session() as session:
             result = await session.run(
                 queries.GET_ALL_PAPERS_WITH_SCORES,
-                limit=request.limit,
+                year_min=request.year_min,
+                year_max=request.year_max,
+                topics=request.topics,
+                limit=request.limit * 2,  # Over-fetch to account for exclusions
             )
             records = await result.data()
 
-        # Convert to recommendation format
+        # Convert to recommendation format with topic matching
         recommendations = [
             {
                 "paper_id": str(rec["paper_id"]),
@@ -285,13 +287,20 @@ async def query_recommendations(
                 "year": int(rec["year"]) if rec["year"] else None,
                 "citations": int(rec["citations"]) if rec["citations"] else 0,
                 "impact_score": float(rec["impact_score"]) if rec["impact_score"] else None,
-                "similarity_score": 1.0,
-                "recommendation_reason": "high_impact",
-                "component_scores": None,
+                "similarity_score": (
+                    float(rec["topic_match_count"]) / max(len(request.topics), 1)
+                    if request.topics
+                    else 1.0
+                ),
+                "recommendation_reason": "topic_match" if request.topics else "high_impact",
+                "component_scores": {
+                    "matched_topics": rec["matched_topics"],
+                    "topic_match_count": rec["topic_match_count"],
+                },
             }
             for rec in records
             if rec["paper_id"] not in request.exclude_papers
-        ]
+        ][:request.limit]  # Trim to requested limit after exclusions
 
         # Cache result
         await cache.set_recommendations(cache_key, recommendations, ttl_seconds=3600)
@@ -327,7 +336,7 @@ async def get_trending_papers(
     limit: int = Query(10, ge=1, le=50, description="Maximum papers to return"),
     min_year: int = Query(2020, ge=1900, le=2100, description="Minimum publication year"),
     client: Neo4jClient = Depends(get_neo4j_client),
-    cache: RecommendationCache = Depends(get_redis_cache),
+    cache: InMemoryCache = Depends(get_cache),
 ) -> TrendingPapersResponse:
     """Get trending papers in a community.
 
@@ -444,28 +453,197 @@ async def get_trending_papers(
 async def get_personalized_feed(
     user_session_id: str,
     limit: int = Query(20, ge=1, le=50, description="Maximum papers to return"),
+    cache: InMemoryCache = Depends(get_cache),
+    recommender: CollaborativeFilterRecommender = Depends(get_recommender),
+    client: Neo4jClient = Depends(get_neo4j_client),
 ) -> RecommendationsResponse:
-    """Get personalized recommendation feed for a user (placeholder).
+    """Get personalized recommendation feed based on viewing history.
 
-    Note: This is a placeholder for future user personalization features.
-    Currently returns an empty list.
+    Uses weighted collaborative filtering on viewed papers to generate
+    personalized recommendations. Falls back to trending papers for new users.
 
     Args:
         user_session_id: User session identifier
         limit: Maximum papers to return
+        cache: Injected in-memory cache
+        recommender: Injected recommendation engine
+        client: Injected Neo4j client
 
     Returns:
-        Empty RecommendationsResponse (placeholder).
+        RecommendationsResponse with personalized papers.
     """
     logger.info("api_get_personalized_feed", user_session_id=user_session_id)
 
-    # Placeholder - return empty
-    return RecommendationsResponse(
-        recommendations=[],
-        total=0,
-        cached=False,
-        cache_ttl_seconds=None,
-    )
+    try:
+        # Get user profile from Neo4j
+        async with client.session() as session:
+            result = await session.run(
+                queries.GET_USER_PROFILE,
+                session_id=user_session_id,
+            )
+            record = await result.single()
+
+        # Extract profile data or use defaults for new users
+        if record and record["profile"]:
+            profile = record["profile"]
+            viewed_papers = profile.get("viewed_papers", [])
+            paper_weights = profile.get("paper_weights", {})
+        else:
+            viewed_papers = []
+            paper_weights = {}
+
+        # Cold start: No viewing history → return trending papers
+        if not viewed_papers:
+            logger.info("feed_cold_start", user_session_id=user_session_id)
+
+            # Get high-impact recent papers
+            async with client.session() as session:
+                result = await session.run(
+                    """
+                    MATCH (p:Paper)
+                    WHERE p.year >= 2020 AND p.impact_score IS NOT NULL
+                    RETURN p.openalex_id AS paper_id,
+                           p.title AS title,
+                           p.year AS year,
+                           p.citations AS citations,
+                           p.impact_score AS impact_score
+                    ORDER BY p.impact_score DESC, p.citations DESC
+                    LIMIT $limit
+                    """,
+                    limit=limit,
+                )
+                records = await result.data()
+
+            recommendations = [
+                {
+                    "paper_id": str(rec["paper_id"]),
+                    "title": str(rec["title"]),
+                    "year": int(rec["year"]) if rec["year"] else None,
+                    "citations": int(rec["citations"]) if rec["citations"] else 0,
+                    "impact_score": float(rec["impact_score"]) if rec["impact_score"] else None,
+                    "similarity_score": 1.0,
+                    "recommendation_reason": "trending",
+                    "component_scores": None,
+                }
+                for rec in records
+            ]
+
+            return RecommendationsResponse(
+                recommendations=[
+                    RecommendationItem.model_validate(rec) for rec in recommendations
+                ],
+                total=len(recommendations),
+                cached=False,
+                cache_ttl_seconds=None,
+            )
+
+        # Warm start: Build personalized feed from viewed papers
+        logger.info(
+            "feed_personalized",
+            user_session_id=user_session_id,
+            viewed_count=len(viewed_papers),
+        )
+
+        # Aggregate recommendations from all viewed papers (weighted)
+        candidate_scores: dict[str, float] = {}
+        for paper_id in viewed_papers[:10]:  # Limit to most recent 10 views
+            weight = paper_weights.get(paper_id, 1.0)
+
+            # Get recommendations for this paper
+            try:
+                recs = await recommender.get_paper_recommendations(
+                    paper_id=paper_id,
+                    limit=10,
+                )
+
+                # Add weighted score to candidates
+                for rec in recs:
+                    rec_id = rec["paper_id"]
+                    if rec_id not in viewed_papers:  # Skip already viewed
+                        similarity = rec["similarity_score"]
+                        candidate_scores[rec_id] = (
+                            candidate_scores.get(rec_id, 0.0) + similarity * weight
+                        )
+
+            except Exception as e:
+                logger.warning(
+                    "feed_rec_failed",
+                    paper_id=paper_id,
+                    error=str(e),
+                )
+                continue
+
+        # Sort by aggregated score and get top candidates
+        sorted_candidates = sorted(
+            candidate_scores.items(),
+            key=lambda x: x[1],
+            reverse=True,
+        )[:limit * 2]  # Over-fetch for diversity filtering
+
+        # Fetch full paper details
+        if not sorted_candidates:
+            # No recommendations found, return trending papers
+            return await get_personalized_feed(
+                user_session_id="trending",
+                limit=limit,
+                cache=cache,
+                recommender=recommender,
+                client=client,
+            )
+
+        candidate_ids = [cid for cid, _ in sorted_candidates]
+
+        async with client.session() as session:
+            result = await session.run(
+                """
+                MATCH (p:Paper)
+                WHERE p.openalex_id IN $paper_ids
+                RETURN p.openalex_id AS paper_id,
+                       p.title AS title,
+                       p.year AS year,
+                       p.citations AS citations,
+                       p.impact_score AS impact_score
+                """,
+                paper_ids=candidate_ids,
+            )
+            records = await result.data()
+
+        # Create recommendation list with aggregated scores
+        recommendations = []
+        for rec in records:
+            rec_id = str(rec["paper_id"])
+            aggregated_score = candidate_scores.get(rec_id, 0.0)
+
+            recommendations.append({
+                "paper_id": rec_id,
+                "title": str(rec["title"]),
+                "year": int(rec["year"]) if rec["year"] else None,
+                "citations": int(rec["citations"]) if rec["citations"] else 0,
+                "impact_score": float(rec["impact_score"]) if rec["impact_score"] else None,
+                "similarity_score": aggregated_score,
+                "recommendation_reason": "personalized",
+                "component_scores": None,
+            })
+
+        # Sort by aggregated score and trim to limit
+        recommendations.sort(key=lambda x: x["similarity_score"], reverse=True)
+        recommendations = recommendations[:limit]
+
+        return RecommendationsResponse(
+            recommendations=[
+                RecommendationItem.model_validate(rec) for rec in recommendations
+            ],
+            total=len(recommendations),
+            cached=False,
+            cache_ttl_seconds=None,
+        )
+
+    except Exception as e:
+        logger.error("personalized_feed_failed", user_session_id=user_session_id, error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to generate personalized feed: {str(e)}",
+        ) from e
 
 
 # =============================================================================
@@ -493,7 +671,10 @@ async def get_paper_detail(
 
             # Fetch topics
             topic_result = await session.run(
-                "MATCH (p:Paper {openalex_id: $id})-[:BELONGS_TO_TOPIC]->(t:Topic) RETURN t.name AS name",
+                """
+                MATCH (p:Paper {openalex_id: $id})-[:BELONGS_TO_TOPIC]->(t:Topic)
+                RETURN t.name AS name
+                """,
                 id=paper_id,
             )
             topics = [rec["name"] for rec in await topic_result.data()]
@@ -698,8 +879,53 @@ class ViewTrackRequest(BaseModel):
 @router.post("/track/view", status_code=204)
 async def track_view(
     request: ViewTrackRequest,
+    client: Neo4jClient = Depends(get_neo4j_client),
 ) -> None:
-    """Track a paper view for personalization (placeholder)."""
+    """Track a paper view for personalization.
+
+    Stores the view in the user's profile (Neo4j) with default engagement weight.
+    This data powers personalized recommendations in the feed.
+
+    Args:
+        request: View tracking data (session_id, paper_id)
+        client: Injected Neo4j client
+    """
     logger.info("api_track_view", **request.model_dump())
-    # In a real app, we'd store this in Redis or Neo4j
+
+    try:
+        # Add viewed paper to user profile in Neo4j
+        async with client.session() as session:
+            # First, ensure user profile exists
+            await session.run(
+                queries.MERGE_USER_PROFILE,
+                session_id=request.user_session_id,
+                viewed_papers=[],
+                paper_weights={},
+                preferred_topics={},
+                preferred_communities=[],
+            )
+
+            # Then add the viewed paper
+            await session.run(
+                queries.ADD_VIEWED_PAPER,
+                session_id=request.user_session_id,
+                paper_id=request.paper_id,
+                weight=1.0,  # Default engagement weight
+            )
+
+        logger.debug(
+            "view_tracked",
+            session_id=request.user_session_id,
+            paper_id=request.paper_id,
+        )
+
+    except Exception as e:
+        logger.warning(
+            "view_tracking_failed",
+            session_id=request.user_session_id,
+            paper_id=request.paper_id,
+            error=str(e),
+        )
+        # Don't fail the request if tracking fails
+
     return

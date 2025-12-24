@@ -1,44 +1,35 @@
 """Caching layer for GraphLit ResearchRadar.
 
-This module provides Redis-based caching for expensive operations:
+This module provides in-memory caching for expensive operations:
 - Recommendation results (1 hour TTL)
-- Similarity matrices (24 hour TTL)
-- Topic mappings (4 hour TTL)
+- Query results (1 hour TTL)
 
-The cache gracefully degrades when Redis is unavailable - the system
-remains fully functional without caching, just with slower performance.
+The cache is stored in memory using cachetools and is automatically cleared
+on application restart. User profiles are persisted to Neo4j for durability.
 
 Usage:
-    >>> from graphlit.cache import RecommendationCache
-    >>> from graphlit.config import get_settings
+    >>> from graphlit.cache import InMemoryCache
     >>>
-    >>> settings = get_settings()
-    >>> cache = RecommendationCache(settings.redis)
+    >>> cache = InMemoryCache(maxsize=1000, ttl=3600)
     >>>
-    >>> # Connect to Redis (or fail gracefully)
-    >>> if await cache.connect():
-    ...     print("Redis available")
-    ... else:
-    ...     print("Redis unavailable - degraded mode")
-    >>>
-    >>> # Try to get cached data
-    >>> cached = await cache.get_recommendations("key")
+    >>> # Get/set cached data
+    >>> cached = await cache.get("recommendations:paper:W123")
     >>> if cached is None:
-    ...     # Cache miss or unavailable
+    ...     # Cache miss
     ...     data = compute_expensive_recommendations()
-    ...     await cache.set_recommendations("key", data, ttl=3600)
+    ...     await cache.set("recommendations:paper:W123", data)
 """
 
 from __future__ import annotations
 
-__all__ = ["RecommendationCache"]
+__all__ = ["InMemoryCache"]
 
 
 def __getattr__(name: str) -> type:
-    """Lazy import to avoid loading Redis dependencies if not needed."""
-    if name == "RecommendationCache":
-        from graphlit.cache.redis_cache import RecommendationCache
+    """Lazy import for cache implementation."""
+    if name == "InMemoryCache":
+        from graphlit.cache.memory_cache import InMemoryCache
 
-        return RecommendationCache
+        return InMemoryCache
 
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

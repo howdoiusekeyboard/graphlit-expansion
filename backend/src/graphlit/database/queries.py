@@ -40,12 +40,48 @@ FOR (t:Topic)
 ON (t.openalex_id)
 """
 
+# Performance indexes for query optimization
+CREATE_PAPER_YEAR_INDEX = """
+CREATE INDEX paper_year IF NOT EXISTS
+FOR (p:Paper)
+ON (p.year)
+"""
+
+CREATE_PAPER_IMPACT_SCORE_INDEX = """
+CREATE INDEX paper_impact_score IF NOT EXISTS
+FOR (p:Paper)
+ON (p.impact_score)
+"""
+
+CREATE_PAPER_CITATIONS_INDEX = """
+CREATE INDEX paper_citations IF NOT EXISTS
+FOR (p:Paper)
+ON (p.citations)
+"""
+
+CREATE_PAPER_COMMUNITY_INDEX = """
+CREATE INDEX paper_community IF NOT EXISTS
+FOR (p:Paper)
+ON (p.community)
+"""
+
+CREATE_USER_PROFILE_INDEX = """
+CREATE INDEX user_profile_session_id IF NOT EXISTS
+FOR (u:UserProfile)
+ON (u.session_id)
+"""
+
 ALL_INDEX_QUERIES = [
     CREATE_PAPER_INDEX,
     CREATE_PAPER_DOI_INDEX,
     CREATE_AUTHOR_INDEX,
     CREATE_VENUE_INDEX,
     CREATE_TOPIC_INDEX,
+    CREATE_PAPER_YEAR_INDEX,
+    CREATE_PAPER_IMPACT_SCORE_INDEX,
+    CREATE_PAPER_CITATIONS_INDEX,
+    CREATE_PAPER_COMMUNITY_INDEX,
+    CREATE_USER_PROFILE_INDEX,
 ]
 
 # =============================================================================
@@ -162,6 +198,186 @@ MATCH (t:Topic)
 WITH papers, authors, venues, count(t) AS topics
 MATCH ()-[c:CITES]->()
 RETURN papers, authors, venues, topics, count(c) AS citations
+"""
+
+# =============================================================================
+# Recommendation Queries
+# =============================================================================
+
+GET_ALL_PAPERS_WITH_SCORES = """
+MATCH (p:Paper)
+WHERE ($year_min IS NULL OR p.year >= $year_min)
+  AND ($year_max IS NULL OR p.year <= $year_max)
+OPTIONAL MATCH (p)-[r:BELONGS_TO_TOPIC]->(t:Topic)
+WHERE SIZE($topics) = 0 OR t.name IN $topics
+WITH p, COLLECT(DISTINCT t.name) AS matched_topics, COUNT(DISTINCT t) AS topic_match_count
+WHERE topic_match_count > 0 OR SIZE($topics) = 0
+RETURN p.openalex_id AS paper_id,
+       p.title AS title,
+       p.year AS year,
+       p.citations AS citations,
+       p.impact_score AS impact_score,
+       matched_topics,
+       topic_match_count
+ORDER BY p.impact_score DESC, p.citations DESC
+LIMIT $limit
+"""
+
+GET_CITATION_OVERLAP_PAPERS = """
+MATCH (source:Paper {openalex_id: $paper_id})-[:CITES]->(cited:Paper)
+WITH source, COLLECT(cited.openalex_id) AS source_citations
+MATCH (candidate:Paper)-[:CITES]->(cited:Paper)
+WHERE candidate.openalex_id <> $paper_id
+  AND cited.openalex_id IN source_citations
+WITH candidate, source_citations, COLLECT(DISTINCT cited.openalex_id) AS candidate_citations
+WITH candidate, source_citations, candidate_citations,
+     SIZE([x IN source_citations WHERE x IN candidate_citations]) AS overlap,
+     SIZE(
+         source_citations +
+         [x IN candidate_citations WHERE NOT x IN source_citations]
+     ) AS union_size
+WHERE overlap > 0
+RETURN candidate.openalex_id AS paper_id,
+       candidate.title AS title,
+       candidate.year AS year,
+       candidate.citations AS citations,
+       candidate.impact_score AS impact_score,
+       toFloat(overlap) / toFloat(union_size) AS jaccard_similarity
+ORDER BY jaccard_similarity DESC
+LIMIT $limit
+"""
+
+GET_PAPER_TOPICS = """
+MATCH (p:Paper {openalex_id: $paper_id})-[r:BELONGS_TO_TOPIC]->(t:Topic)
+RETURN t.openalex_id AS topic_id,
+       t.name AS topic_name,
+       r.score AS score
+ORDER BY r.score DESC
+"""
+
+GET_SIMILAR_TOPIC_PAPERS = """
+MATCH (source:Paper {openalex_id: $paper_id})-[r1:BELONGS_TO_TOPIC]->(t:Topic)
+      <-[r2:BELONGS_TO_TOPIC]-(candidate:Paper)
+WHERE candidate.openalex_id <> $paper_id
+WITH candidate, SUM(r1.score * r2.score) AS topic_similarity
+WHERE topic_similarity > 0
+RETURN candidate.openalex_id AS paper_id,
+       candidate.title AS title,
+       candidate.year AS year,
+       candidate.citations AS citations,
+       candidate.impact_score AS impact_score,
+       topic_similarity
+ORDER BY topic_similarity DESC
+LIMIT $limit
+"""
+
+GET_COAUTHOR_NETWORK_PAPERS = """
+MATCH (source:Paper {openalex_id: $paper_id})-[:AUTHORED_BY]->(author:Author)
+      <-[:AUTHORED_BY]-(candidate:Paper)
+WHERE candidate.openalex_id <> $paper_id
+WITH candidate, COUNT(DISTINCT author) AS shared_authors
+WHERE shared_authors > 0
+RETURN candidate.openalex_id AS paper_id,
+       candidate.title AS title,
+       candidate.year AS year,
+       candidate.citations AS citations,
+       candidate.impact_score AS impact_score,
+       shared_authors
+ORDER BY shared_authors DESC
+LIMIT $limit
+"""
+
+GET_SIMILAR_VELOCITY_PAPERS = """
+MATCH (source:Paper {openalex_id: $paper_id})
+WITH source, toFloat(source.citations) / (2025 - source.year + 1) AS source_velocity
+MATCH (candidate:Paper)
+WHERE candidate.openalex_id <> $paper_id
+  AND candidate.year IS NOT NULL
+WITH candidate, source_velocity,
+     toFloat(candidate.citations) / (2025 - candidate.year + 1) AS candidate_velocity
+WITH candidate, source_velocity, candidate_velocity,
+     abs(source_velocity - candidate_velocity) AS velocity_diff
+WHERE velocity_diff < source_velocity * 0.5
+RETURN candidate.openalex_id AS paper_id,
+       candidate.title AS title,
+       candidate.year AS year,
+       candidate.citations AS citations,
+       candidate.impact_score AS impact_score,
+       candidate_velocity AS citation_velocity
+ORDER BY velocity_diff ASC
+LIMIT $limit
+"""
+
+GET_COMMUNITY_TRENDING_PAPERS = """
+MATCH (p:Paper)
+WHERE p.community = $community_id
+  AND ($min_year IS NULL OR p.year >= $min_year)
+RETURN p.openalex_id AS paper_id,
+       p.title AS title,
+       p.year AS year,
+       p.citations AS citations,
+       p.impact_score AS impact_score,
+       p.pagerank AS pagerank,
+       p.community AS community
+ORDER BY p.pagerank DESC, p.impact_score DESC
+LIMIT $limit
+"""
+
+# =============================================================================
+# User Profile Queries
+# =============================================================================
+
+MERGE_USER_PROFILE = """
+MERGE (u:UserProfile {session_id: $session_id})
+SET u.updated_at = datetime(),
+    u.viewed_papers = $viewed_papers,
+    u.paper_weights = $paper_weights,
+    u.preferred_topics = $preferred_topics,
+    u.preferred_communities = $preferred_communities
+ON CREATE SET u.created_at = datetime()
+RETURN u.session_id AS session_id
+"""
+
+GET_USER_PROFILE = """
+MATCH (u:UserProfile {session_id: $session_id})
+RETURN {
+    session_id: u.session_id,
+    viewed_papers: u.viewed_papers,
+    paper_weights: u.paper_weights,
+    preferred_topics: u.preferred_topics,
+    preferred_communities: u.preferred_communities,
+    created_at: toString(u.created_at),
+    updated_at: toString(u.updated_at)
+} AS profile
+"""
+
+ADD_VIEWED_PAPER = """
+MATCH (u:UserProfile {session_id: $session_id})
+MATCH (p:Paper {openalex_id: $paper_id})
+MERGE (u)-[v:VIEWED]->(p)
+SET v.timestamp = datetime(),
+    v.weight = $weight
+WITH u, p
+SET u.viewed_papers = CASE
+    WHEN $paper_id IN u.viewed_papers THEN u.viewed_papers
+    ELSE u.viewed_papers + [$paper_id]
+END,
+    u.paper_weights = CASE
+        WHEN u.paper_weights IS NULL THEN {($paper_id): $weight}
+        ELSE u.paper_weights + {($paper_id): $weight}
+    END,
+    u.updated_at = datetime()
+RETURN u.session_id AS session_id
+"""
+
+GET_USER_VIEWING_HISTORY = """
+MATCH (u:UserProfile {session_id: $session_id})-[v:VIEWED]->(p:Paper)
+RETURN p.openalex_id AS paper_id,
+       p.title AS title,
+       v.timestamp AS viewed_at,
+       v.weight AS weight
+ORDER BY v.timestamp DESC
+LIMIT $limit
 """
 
 # =============================================================================

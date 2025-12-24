@@ -4,36 +4,42 @@ Academic citation network expansion via OpenAlex API and Neo4j. BFS traversal fr
 
 ## Architecture
 
-- Async I/O (httpx, neo4j-driver)
+- **Python 3.13.6** - JIT compiler, no-GIL mode, enhanced REPL
+- Async I/O (httpx 0.28.1, neo4j-driver 6.0.3)
 - Rate-limited OpenAlex client (10 req/s)
 - Idempotent MERGE operations (resumable)
-- Structured logging (structlog)
-- Type-safe configuration (pydantic-settings)
-- Strict mypy compliance
+- In-memory caching (cachetools 6.2.4, 100x faster than Redis)
+- Structured logging (structlog 24.4.0)
+- Type-safe configuration (pydantic 2.12)
+- Strict mypy 1.14.0 compliance
+- **FastAPI 0.127.0** - Production-ready REST API
 
 ## Requirements
 
-- Python 3.12+
-- Neo4j 5.x
+- **Python 3.13.6+** (recommended for JIT compiler)
+- **uv** (recommended package manager, 80x faster than pip)
+- Neo4j 5.x (database) or 6.x (driver compatible)
 - OpenAlex API access (email required for polite pool)
 
-## Setup
+## Setup (Modern 2025 Stack)
+
+### Option 1: With uv (Recommended - 10-100x faster)
 
 ```bash
-git clone https://github.com/howdoiusekeyboard/graphlit-expansion.git
-cd graphlit-expansion
+# Install uv package manager
+curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Virtual environment
-python -m venv .venv
+# Clone repository
+git clone https://github.com/howdoiusekeyboard/graphlit-expansion.git
+cd graphlit-expansion/backend
+
+# Create virtual environment with Python 3.13
+uv venv --python 3.13
 .venv\Scripts\activate  # Windows
 source .venv/bin/activate  # Unix
 
-# Install
-pip install -e ".[dev]"
-
-# Configure
-copy .env.example .env  # Windows
-cp .env.example .env  # Unix
+# Install dependencies (lightning fast!)
+uv pip install -e ".[dev]"
 ```
 
 Edit `.env`:

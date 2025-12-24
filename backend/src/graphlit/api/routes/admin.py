@@ -14,8 +14,8 @@ import structlog
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from graphlit.api.dependencies import get_redis_cache
-from graphlit.cache.redis_cache import RecommendationCache
+from graphlit.api.dependencies import get_cache
+from graphlit.cache.memory_cache import InMemoryCache
 
 logger = structlog.get_logger(__name__)
 
@@ -33,31 +33,20 @@ router = APIRouter(
 class CacheStatsResponse(BaseModel):
     """Cache statistics response."""
 
-    available: bool = Field(..., description="Whether Redis is available")
-    hits: int = Field(..., description="Cache hit count")
-    misses: int = Field(..., description="Cache miss count")
-    errors: int = Field(..., description="Cache error count")
-    sets: int = Field(..., description="Cache set count")
-    invalidations: int = Field(..., description="Invalidation count")
+    available: bool = Field(..., description="Whether cache is available")
+    size: int = Field(..., description="Current number of keys in cache")
+    maxsize: int = Field(..., description="Maximum cache size")
+    ttl_seconds: int = Field(..., description="Default TTL in seconds")
+    hit_count: int = Field(..., description="Cache hit count")
+    miss_count: int = Field(..., description="Cache miss count")
     hit_rate: float = Field(..., description="Cache hit rate (0-1)")
-    keys_count: int | None = Field(None, description="Total keys in cache")
-    memory_used_mb: float | None = Field(None, description="Memory used (MB)")
-    evicted_keys: int | None = Field(None, description="Evicted keys count")
-    connected_clients: int | None = Field(None, description="Connected client count")
 
 
-class InvalidateCacheRequest(BaseModel):
-    """Request to invalidate cache keys by pattern."""
+class ClearCacheResponse(BaseModel):
+    """Response for cache clear operation."""
 
-    pattern: str = Field(..., description="Redis key pattern (e.g., 'recommendations:paper:*')")
-
-
-class InvalidateCacheResponse(BaseModel):
-    """Response for cache invalidation."""
-
-    pattern: str = Field(..., description="Pattern used for invalidation")
-    deleted_count: int = Field(..., description="Number of keys deleted")
     status: str = Field(..., description="Status message")
+    previous_size: int = Field(..., description="Number of keys before clearing")
 
 
 # =============================================================================
@@ -67,43 +56,34 @@ class InvalidateCacheResponse(BaseModel):
 
 @router.get("/cache/stats", response_model=CacheStatsResponse)
 async def get_cache_stats(
-    cache: RecommendationCache = Depends(get_redis_cache),
+    cache: InMemoryCache = Depends(get_cache),
 ) -> CacheStatsResponse:
     """Get cache statistics and performance metrics.
 
-    Returns detailed statistics about the Redis cache including:
+    Returns statistics about the in-memory cache including:
     - Hit/miss rates
-    - Memory usage
-    - Key counts
-    - Client connections
+    - Current size
+    - TTL settings
 
     Args:
-        cache: Injected Redis cache instance.
+        cache: Injected in-memory cache instance.
 
     Returns:
-        CacheStatsResponse with comprehensive cache metrics.
+        CacheStatsResponse with cache metrics.
     """
     logger.info("api_get_cache_stats")
 
     try:
-        stats = await cache.get_stats()
+        stats = cache.get_stats()
 
         return CacheStatsResponse(
             available=bool(stats["available"]),
-            hits=int(stats["hits"]),
-            misses=int(stats["misses"]),
-            errors=int(stats["errors"]),
-            sets=int(stats["sets"]),
-            invalidations=int(stats["invalidations"]),
+            size=int(stats["size"]),
+            maxsize=int(stats["maxsize"]),
+            ttl_seconds=int(stats["ttl_seconds"]),
+            hit_count=int(stats["hit_count"]),
+            miss_count=int(stats["miss_count"]),
             hit_rate=float(stats["hit_rate"]),
-            keys_count=int(stats["keys_count"]) if "keys_count" in stats else None,
-            memory_used_mb=float(stats["memory_used_mb"])
-            if "memory_used_mb" in stats
-            else None,
-            evicted_keys=int(stats["evicted_keys"]) if "evicted_keys" in stats else None,
-            connected_clients=int(stats["connected_clients"])
-            if "connected_clients" in stats
-            else None,
         )
 
     except Exception as e:
@@ -115,73 +95,53 @@ async def get_cache_stats(
 
 
 # =============================================================================
-# Endpoint 2: Cache Invalidation
+# Endpoint 2: Clear Cache
 # =============================================================================
 
 
-@router.post("/cache/invalidate", response_model=InvalidateCacheResponse)
-async def invalidate_cache(
-    request: InvalidateCacheRequest,
-    cache: RecommendationCache = Depends(get_redis_cache),
-) -> InvalidateCacheResponse:
-    """Invalidate cache keys matching a pattern.
+@router.post("/cache/clear", response_model=ClearCacheResponse)
+async def clear_cache(
+    cache: InMemoryCache = Depends(get_cache),
+) -> ClearCacheResponse:
+    """Clear all cache entries.
 
-    Use this endpoint to manually clear cache entries. Useful for:
-    - Clearing all recommendation caches
-    - Invalidating specific paper caches
+    Use this endpoint to manually clear all cache entries. Useful for:
     - Resetting cache after data updates
+    - Clearing stale recommendations
+    - Testing cache functionality
 
-    Common patterns:
-    - `recommendations:*` - All recommendations
-    - `recommendations:paper:*` - All paper recommendations
-    - `recommendations:paper:W123456:*` - Specific paper
-    - `similarities:*` - All similarity matrices
+    Note: In-memory cache does not support pattern-based invalidation.
+    This endpoint clears ALL cached data.
 
     Args:
-        request: Invalidation request with pattern.
-        cache: Injected Redis cache instance.
+        cache: Injected in-memory cache instance.
 
     Returns:
-        InvalidateCacheResponse with deletion count.
-
-    Raises:
-        HTTPException 422: If pattern is empty or invalid.
-        HTTPException 503: If Redis is unavailable.
+        ClearCacheResponse with previous cache size.
     """
-    logger.info("api_invalidate_cache", pattern=request.pattern)
-
-    # Validate pattern
-    if not request.pattern or request.pattern.strip() == "":
-        raise HTTPException(
-            status_code=422,
-            detail="Pattern cannot be empty",
-        )
-
-    # Check if Redis is available
-    if not cache.available:
-        raise HTTPException(
-            status_code=503,
-            detail="Redis cache is unavailable",
-        )
+    logger.info("api_clear_cache")
 
     try:
-        deleted_count = await cache.invalidate_pattern(request.pattern)
+        # Get current size before clearing
+        stats = cache.get_stats()
+        previous_size = stats["size"]
+
+        # Clear all entries
+        await cache.clear()
 
         logger.info(
-            "cache_invalidated",
-            pattern=request.pattern,
-            deleted_count=deleted_count,
+            "cache_cleared",
+            previous_size=previous_size,
         )
 
-        return InvalidateCacheResponse(
-            pattern=request.pattern,
-            deleted_count=deleted_count,
+        return ClearCacheResponse(
             status="success",
+            previous_size=previous_size,
         )
 
     except Exception as e:
-        logger.error("invalidate_cache_failed", pattern=request.pattern, error=str(e))
+        logger.error("clear_cache_failed", error=str(e))
         raise HTTPException(
             status_code=500,
-            detail=f"Failed to invalidate cache: {str(e)}",
+            detail=f"Failed to clear cache: {str(e)}",
         ) from e
