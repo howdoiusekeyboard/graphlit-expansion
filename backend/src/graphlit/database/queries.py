@@ -381,6 +381,46 @@ LIMIT $limit
 """
 
 # =============================================================================
+# Analytics Queries
+# =============================================================================
+
+UPDATE_PAPER_IMPACT_SCORE = """
+MATCH (p:Paper {openalex_id: $paper_id})
+SET p.impact_score = $impact_score
+RETURN p.openalex_id AS paper_id, p.impact_score AS impact_score
+"""
+
+GET_COMMUNITY_TOPIC_DISTRIBUTION = """
+MATCH (p:Paper {community: $community_id})-[r:BELONGS_TO_TOPIC]->(t:Topic)
+WITH t.name AS topic, sum(r.score) AS total_score, count(p) AS paper_count
+RETURN topic, total_score, paper_count
+ORDER BY total_score DESC
+"""
+
+GET_BRIDGING_PAPERS = """
+MATCH (p:Paper)
+WHERE p.betweenness IS NOT NULL
+WITH p, size([(p)-[:CITES]->() | 1]) AS out_degree
+WHERE out_degree >= $min_communities
+RETURN p.openalex_id AS paper_id,
+       p.title AS title,
+       p.year AS year,
+       p.citations AS citations,
+       p.betweenness AS betweenness_score,
+       out_degree AS connected_communities
+ORDER BY p.betweenness DESC
+LIMIT $limit
+"""
+
+GET_COMMUNITY_STATS = """
+MATCH (p:Paper)
+WHERE p.community IS NOT NULL
+WITH p.community AS community_id, count(p) AS size
+RETURN community_id, size
+ORDER BY size DESC
+"""
+
+# =============================================================================
 # Cleanup Queries (for testing)
 # =============================================================================
 

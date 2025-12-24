@@ -176,7 +176,7 @@ def should_retry_http_error(exception: Exception) -> bool:
     return False
 
 
-async def retry_async(
+async def retry_async[T](
     func: Callable[[], Awaitable[T]],
     max_retries: int = 3,
     base_delay: float = 1.0,

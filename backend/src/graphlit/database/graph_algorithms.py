@@ -421,7 +421,10 @@ class GraphAlgorithms:
         MATCH (p:Paper)
         WHERE p.betweenness IS NOT NULL
         RETURN p.openalex_id AS paper_id,
-               CASE WHEN max_score > 0 THEN p.betweenness / max_score ELSE 0.0 END AS normalized_score
+               CASE WHEN max_score > 0
+                    THEN p.betweenness / max_score
+                    ELSE 0.0
+               END AS normalized_score
         ORDER BY normalized_score DESC
         """
 

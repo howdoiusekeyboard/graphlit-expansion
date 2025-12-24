@@ -352,7 +352,12 @@ class ImpactScorer:
             momentum = await self.calculate_topic_momentum()
 
             # Find all paper IDs that have at least one score
-            all_paper_ids = set(pagerank.keys()) | set(velocity.keys()) | set(reputation.keys()) | set(momentum.keys())
+            all_paper_ids = (
+                set(pagerank.keys())
+                | set(velocity.keys())
+                | set(reputation.keys())
+                | set(momentum.keys())
+            )
 
             # Build composite score cache
             self.scores = {}
@@ -400,15 +405,20 @@ class ImpactScorer:
         components = self.scores[paper_id]
 
         # Weighted combination (weights are validated to sum to 1.0 in config)
+        pagerank = float(components["pagerank"])
+        citation_velocity = float(components["citation_velocity"])
+        author_reputation = float(components["author_reputation"])
+        topic_momentum = float(components["topic_momentum"])
+
         composite = (
-            self.settings.pagerank_weight * components["pagerank"]
-            + self.settings.citation_velocity_weight * components["citation_velocity"]
-            + self.settings.author_reputation_weight * components["author_reputation"]
-            + self.settings.topic_momentum_weight * components["topic_momentum"]
+            self.settings.pagerank_weight * pagerank
+            + self.settings.citation_velocity_weight * citation_velocity
+            + self.settings.author_reputation_weight * author_reputation
+            + self.settings.topic_momentum_weight * topic_momentum
         )
 
         # Scale to 0-100
-        return composite * 100.0
+        return float(composite * 100.0)
 
     # =========================================================================
     # Ranking and Persistence

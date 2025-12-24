@@ -4,7 +4,7 @@ Academic citation network expansion via OpenAlex API and Neo4j. BFS traversal fr
 
 ## Architecture
 
-- **Python 3.13.6** - JIT compiler, no-GIL mode, enhanced REPL
+- **Python 3.14.2** - JIT compiler, no-GIL mode, enhanced REPL
 - Async I/O (httpx 0.28.1, neo4j-driver 6.0.3)
 - Rate-limited OpenAlex client (10 req/s)
 - Idempotent MERGE operations (resumable)
@@ -16,7 +16,7 @@ Academic citation network expansion via OpenAlex API and Neo4j. BFS traversal fr
 
 ## Requirements
 
-- **Python 3.13.6+** (recommended for JIT compiler)
+- **Python 3.14.0+** (recommended for JIT compiler)
 - **uv** (recommended package manager, 80x faster than pip)
 - Neo4j 5.x (database) or 6.x (driver compatible)
 - OpenAlex API access (email required for polite pool)
@@ -33,8 +33,8 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 git clone https://github.com/howdoiusekeyboard/graphlit-expansion.git
 cd graphlit-expansion/backend
 
-# Create virtual environment with Python 3.13
-uv venv --python 3.13
+# Create virtual environment with Python 3.14
+uv venv --python 3.14.2
 .venv\Scripts\activate  # Windows
 source .venv/bin/activate  # Unix
 

@@ -195,13 +195,16 @@ class ContentBasedRecommender:
                     continue
 
                 # Build recommendation
+                impact_score = (
+                    float(record["impact_score"]) if record["impact_score"] else None
+                )
                 recommendations.append(
                     {
                         "paper_id": str(record["paper_id"]),
                         "title": str(record["title"]),
                         "year": int(record["year"]) if record["year"] else None,
                         "citations": int(record["citations"]) if record["citations"] else 0,
-                        "impact_score": float(record["impact_score"]) if record["impact_score"] else None,
+                        "impact_score": impact_score,
                         "similarity_score": round(affinity, 4),
                         "recommendation_reason": "topic_similarity",
                         "shared_topics": int(record["shared_topic_count"]),

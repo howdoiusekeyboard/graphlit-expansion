@@ -626,7 +626,7 @@ async def get_personalized_feed(
             })
 
         # Sort by aggregated score and trim to limit
-        recommendations.sort(key=lambda x: x["similarity_score"], reverse=True)
+        recommendations.sort(key=lambda x: float(x["similarity_score"]), reverse=True)
         recommendations = recommendations[:limit]
 
         return RecommendationsResponse(

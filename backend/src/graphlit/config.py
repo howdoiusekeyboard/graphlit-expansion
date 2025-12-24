@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from pydantic import Field, HttpUrl
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,7 +17,7 @@ class OpenAlexSettings(BaseSettings):
 
     model_config = SettingsConfigDict(env_prefix="OPENALEX__")
 
-    base_url: HttpUrl = Field(
+    base_url: str = Field(
         default="https://api.openalex.org",
         description="OpenAlex API base URL",
     )
@@ -89,6 +89,53 @@ class ExpansionSettings(BaseSettings):
     )
 
 
+class AnalyticsSettings(BaseSettings):
+    """Configuration for analytics and graph algorithms."""
+
+    model_config = SettingsConfigDict(env_prefix="ANALYTICS__")
+
+    gds_graph_name: str = Field(
+        default="citation_network",
+        description="GDS graph projection name",
+    )
+    louvain_max_iterations: Annotated[int, Field(ge=1, le=100)] = Field(
+        default=10,
+        description="Maximum Louvain algorithm iterations",
+    )
+    louvain_tolerance: Annotated[float, Field(ge=0.0, le=1.0)] = Field(
+        default=0.0001,
+        description="Louvain convergence tolerance",
+    )
+    min_community_size: Annotated[int, Field(ge=1, le=100)] = Field(
+        default=3,
+        description="Minimum community size threshold",
+    )
+    pagerank_weight: Annotated[float, Field(ge=0.0, le=1.0)] = Field(
+        default=0.30,
+        description="PageRank weight in impact score",
+    )
+    citation_velocity_weight: Annotated[float, Field(ge=0.0, le=1.0)] = Field(
+        default=0.25,
+        description="Citation velocity weight in impact score",
+    )
+    author_reputation_weight: Annotated[float, Field(ge=0.0, le=1.0)] = Field(
+        default=0.25,
+        description="Author reputation weight in impact score",
+    )
+    topic_momentum_weight: Annotated[float, Field(ge=0.0, le=1.0)] = Field(
+        default=0.20,
+        description="Topic momentum weight in impact score",
+    )
+    pagerank_damping_factor: Annotated[float, Field(ge=0.0, le=1.0)] = Field(
+        default=0.85,
+        description="PageRank damping factor",
+    )
+    pagerank_max_iterations: Annotated[int, Field(ge=1, le=100)] = Field(
+        default=20,
+        description="Maximum PageRank iterations",
+    )
+
+
 class Settings(BaseSettings):
     """Root configuration aggregating all settings.
 
@@ -111,6 +158,7 @@ class Settings(BaseSettings):
     openalex: OpenAlexSettings = Field(default_factory=OpenAlexSettings)
     neo4j: Neo4jSettings = Field(default_factory=Neo4jSettings)
     expansion: ExpansionSettings = Field(default_factory=ExpansionSettings)
+    analytics: AnalyticsSettings = Field(default_factory=AnalyticsSettings)
     debug: bool = Field(
         default=False,
         description="Enable debug mode for verbose logging",

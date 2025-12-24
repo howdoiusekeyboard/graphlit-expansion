@@ -38,7 +38,6 @@ if TYPE_CHECKING:
 from graphlit.database import queries
 from graphlit.recommendations.similarity import (
     citation_velocity_similarity,
-    jaccard_similarity,
     topic_affinity_score,
 )
 
@@ -121,11 +120,14 @@ class CollaborativeFilterRecommender:
 
             candidates = {}
             for record in records:
+                impact_score = (
+                    float(record["impact_score"]) if record["impact_score"] else None
+                )
                 candidates[str(record["paper_id"])] = {
                     "title": str(record["title"]),
                     "year": int(record["year"]) if record["year"] else None,
                     "citations": int(record["citations"]) if record["citations"] else 0,
-                    "impact_score": float(record["impact_score"]) if record["impact_score"] else None,
+                    "impact_score": impact_score,
                     "similarity_score": float(record["jaccard_similarity"]),
                     "method": "citation_overlap",
                 }
@@ -197,12 +199,15 @@ class CollaborativeFilterRecommender:
                 ]
 
                 affinity = topic_affinity_score(source_topics, candidate_topics)
+                impact_score = (
+                    float(record["impact_score"]) if record["impact_score"] else None
+                )
 
                 candidates[str(record["paper_id"])] = {
                     "title": str(record["title"]),
                     "year": int(record["year"]) if record["year"] else None,
                     "citations": int(record["citations"]) if record["citations"] else 0,
-                    "impact_score": float(record["impact_score"]) if record["impact_score"] else None,
+                    "impact_score": impact_score,
                     "similarity_score": affinity,
                     "method": "topic_similarity",
                 }
@@ -257,12 +262,15 @@ class CollaborativeFilterRecommender:
                 # Normalize by number of shared authors (max observed ~10)
                 shared_count = int(record["shared_author_count"])
                 similarity = min(shared_count / 3.0, 1.0)
+                impact_score = (
+                    float(record["impact_score"]) if record["impact_score"] else None
+                )
 
                 candidates[str(record["paper_id"])] = {
                     "title": str(record["title"]),
                     "year": int(record["year"]) if record["year"] else None,
                     "citations": int(record["citations"]) if record["citations"] else 0,
-                    "impact_score": float(record["impact_score"]) if record["impact_score"] else None,
+                    "impact_score": impact_score,
                     "similarity_score": similarity,
                     "method": "author_collaboration",
                     "shared_authors": list(record["shared_author_names"]),
@@ -323,12 +331,15 @@ class CollaborativeFilterRecommender:
                 similarity = citation_velocity_similarity(
                     velocity, velocity - velocity_diff, max_diff=10.0
                 )
+                impact_score = (
+                    float(record["impact_score"]) if record["impact_score"] else None
+                )
 
                 candidates[str(record["paper_id"])] = {
                     "title": str(record["title"]),
                     "year": int(record["year"]) if record["year"] else None,
                     "citations": int(record["citations"]) if record["citations"] else 0,
-                    "impact_score": float(record["impact_score"]) if record["impact_score"] else None,
+                    "impact_score": impact_score,
                     "similarity_score": similarity,
                     "method": "velocity_similarity",
                 }
