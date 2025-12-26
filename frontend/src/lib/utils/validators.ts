@@ -72,6 +72,25 @@ export const CommunitiesResponseSchema = z.object({
   total: z.number().int().nonnegative(),
 });
 
+// Trending paper item schema (for community trending endpoint)
+export const TrendingPaperItemSchema = z.object({
+  paper_id: z.string().regex(/^W\d+$/, 'Invalid OpenAlex ID format'),
+  title: z.string().min(1),
+  year: z.number().int().min(1900).max(2100),
+  citations: z.number().int().nonnegative(),
+  impact_score: z.number().min(0).max(100).nullable(),
+  pagerank: z.number().nullable(),
+  community: z.number().optional(),
+});
+
+// Trending papers response schema (for community trending endpoint)
+export const TrendingPapersResponseSchema = z.object({
+  community_id: z.number().int(),
+  community_label: z.string().nullable(),
+  trending_papers: z.array(TrendingPaperItemSchema),
+  total: z.number().int().nonnegative(),
+});
+
 // Export inferred types
 export type RecommendationItem = z.infer<typeof RecommendationItemSchema>;
 export type PaperRecommendationsResponse = z.infer<typeof PaperRecommendationsResponseSchema>;
@@ -80,3 +99,5 @@ export type CommunityListItem = z.infer<typeof CommunityListItemSchema>;
 export type CommunitiesResponse = z.infer<typeof CommunitiesResponseSchema>;
 export type QueryRequest = z.infer<typeof QueryRequestSchema>;
 export type SimilarityBreakdown = z.infer<typeof SimilarityBreakdownSchema>;
+export type TrendingPaperItem = z.infer<typeof TrendingPaperItemSchema>;
+export type TrendingPapersResponse = z.infer<typeof TrendingPapersResponseSchema>;

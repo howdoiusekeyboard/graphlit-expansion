@@ -8,7 +8,7 @@ This module provides the main FastAPI application with:
 - Lifespan management for connections
 
 To run the API server:
-    uvicorn graphlit.api.main:app --host 0.0.0.0 --port 8000 --reload
+    uvicorn graphlit.api.main:app --host 0.0.0.0 --port 8080 --reload
 """
 
 from __future__ import annotations
@@ -148,5 +148,5 @@ def create_app() -> FastAPI:
 # Application Instance
 # =============================================================================
 
-# For uvicorn: uvicorn graphlit.api.main:app --host 0.0.0.0 --port 8000 --reload
+# For uvicorn: uvicorn graphlit.api.main:app --host 0.0.0.0 --port 8080 --reload
 app = create_app()

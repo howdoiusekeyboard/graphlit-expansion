@@ -100,8 +100,7 @@ class TrendingPaperItem(BaseModel):
     year: int | None
     citations: int
     impact_score: float | None
-    citation_velocity: float | None
-    topic_momentum: float | None
+    pagerank: float | None = None
 
 
 class TrendingPapersResponse(BaseModel):
@@ -111,6 +110,33 @@ class TrendingPapersResponse(BaseModel):
     community_label: str | None
     trending_papers: list[TrendingPaperItem]
     total: int
+
+
+class CommunityNetworkNode(BaseModel):
+    """Node in community citation network."""
+
+    paper_id: str = Field(..., description="OpenAlex ID")
+    title: str = Field(..., description="Paper title")
+    year: int | None = Field(None, description="Publication year")
+    citations: int = Field(0, description="Citation count")
+    impact_score: float | None = Field(None, description="Predictive impact score")
+    community: int | None = Field(None, description="Community ID")
+    x: float | None = Field(None, description="Optional x-coordinate for layout")
+    y: float | None = Field(None, description="Optional y-coordinate for layout")
+
+
+class CommunityNetworkEdge(BaseModel):
+    """Edge in community citation network."""
+
+    source: str = Field(..., description="Source paper ID")
+    target: str = Field(..., description="Target paper ID")
+
+
+class CommunityNetworkResponse(BaseModel):
+    """Community citation network response."""
+
+    papers: list[CommunityNetworkNode] = Field(..., description="Network nodes")
+    citations: list[CommunityNetworkEdge] = Field(..., description="Citation edges")
 
 
 # =============================================================================
@@ -334,7 +360,7 @@ async def query_recommendations(
 async def get_trending_papers(
     community_id: int,
     limit: int = Query(10, ge=1, le=50, description="Maximum papers to return"),
-    min_year: int = Query(2020, ge=1900, le=2100, description="Minimum publication year"),
+    min_year: int | None = Query(None, ge=1900, le=2100, description="Minimum publication year"),
     client: Neo4jClient = Depends(get_neo4j_client),
     cache: InMemoryCache = Depends(get_cache),
 ) -> TrendingPapersResponse:
@@ -382,6 +408,28 @@ async def get_trending_papers(
     # Fetch trending papers
     try:
         async with client.session() as session:
+            # Phase 1: Check if community exists and has papers matching year filter
+            check_query = """
+            MATCH (p:Paper)
+            WHERE p.community = $community_id
+            RETURN count(p) AS total,
+                   sum(CASE WHEN $min_year IS NULL OR p.year >= $min_year THEN 1 ELSE 0 END) AS matching
+            """
+            check_result = await session.run(
+                check_query,
+                community_id=community_id,
+                min_year=min_year,
+            )
+            check_record = await check_result.single()
+
+            if not check_record or check_record["total"] == 0:
+                # Community doesn't exist
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Community {community_id} not found",
+                )
+
+            # Phase 2: Fetch trending papers
             result = await session.run(
                 queries.GET_COMMUNITY_TRENDING_PAPERS,
                 community_id=community_id,
@@ -390,10 +438,20 @@ async def get_trending_papers(
             )
             records = await result.data()
 
+            # If no papers match year filter, return empty response (not 404)
             if not records:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Community {community_id} not found or has no papers",
+                logger.warning(
+                    "community_no_matching_papers",
+                    community_id=community_id,
+                    min_year=min_year,
+                    total_papers=check_record["total"],
+                    matching_papers=check_record["matching"],
+                )
+                return TrendingPapersResponse(
+                    community_id=community_id,
+                    community_label=f"Community {community_id}",
+                    trending_papers=[],
+                    total=0,
                 )
 
             # Convert to response format
@@ -406,12 +464,7 @@ async def get_trending_papers(
                     "impact_score": float(rec["impact_score"])
                     if rec["impact_score"]
                     else None,
-                    "citation_velocity": float(rec["citation_velocity"])
-                    if rec["citation_velocity"]
-                    else None,
-                    "topic_momentum": float(rec["topic_momentum"])
-                    if rec["topic_momentum"]
-                    else None,
+                    "pagerank": float(rec["pagerank"]) if rec.get("pagerank") else None,
                 }
                 for rec in records
             ]
@@ -444,8 +497,103 @@ async def get_trending_papers(
         ) from e
 
 
+@router.get("/community/{community_id}/network", response_model=CommunityNetworkResponse)
+async def get_community_network(
+    community_id: int,
+    min_year: int | None = Query(None, ge=1900, le=2100, description="Minimum publication year"),
+    limit: int = Query(50, ge=10, le=100, description="Maximum papers to return"),
+    client: Neo4jClient = Depends(get_neo4j_client),
+    cache: InMemoryCache = Depends(get_cache),
+) -> CommunityNetworkResponse:
+    """Get citation network for a specific community.
+
+    Returns the top N papers by PageRank/impact score within a community
+    along with intra-community citation edges for network visualization.
+
+    Args:
+        community_id: Community identifier
+        min_year: Optional minimum publication year filter
+        limit: Maximum number of papers to return (default: 50)
+        client: Neo4j database client
+        cache: In-memory cache instance
+
+    Returns:
+        CommunityNetworkResponse with papers and citations
+
+    Raises:
+        HTTPException: 404 if community not found, 500 on query error
+    """
+    logger.info("api_get_community_network", community_id=community_id, min_year=min_year, limit=limit)
+
+    # Check cache first (4-hour TTL)
+    cache_key = f"community_network:{community_id}:{min_year}:{limit}"
+    cached = await cache.get(cache_key)
+    if cached:
+        logger.info("community_network_cache_hit", community_id=community_id)
+        return CommunityNetworkResponse(**cached)
+
+    try:
+        async with client.session() as session:
+            # Phase 1: Check if community exists
+            check_query = """
+            MATCH (p:Paper)
+            WHERE p.community = $community_id
+            RETURN count(p) AS total
+            """
+            check_result = await session.run(check_query, community_id=community_id)
+            check_record = await check_result.single()
+
+            if not check_record or check_record["total"] == 0:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Community {community_id} not found"
+                )
+
+            # Phase 2: Fetch network data
+            result = await session.run(
+                queries.GET_COMMUNITY_CITATION_NETWORK,
+                community_id=community_id,
+                min_year=min_year,
+                limit=limit,
+            )
+            record = await result.single()
+
+            if not record or not record["network"]:
+                logger.warning("community_network_empty", community_id=community_id)
+                return CommunityNetworkResponse(papers=[], citations=[])
+
+            network_data = record["network"]
+
+            # Parse response
+            papers = [CommunityNetworkNode(**p) for p in network_data["papers"]]
+            citations = [CommunityNetworkEdge(**c) for c in network_data["citations"]]
+
+            response = CommunityNetworkResponse(papers=papers, citations=citations)
+
+            # Cache for 4 hours
+            await cache.set(cache_key, response.model_dump(), ttl_seconds=14400)
+
+            logger.info(
+                "community_network_success",
+                community_id=community_id,
+                paper_count=len(papers),
+                citation_count=len(citations),
+            )
+
+            return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("community_network_failed", community_id=community_id, error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch community network: {str(e)}"
+        ) from e
+
+
 # =============================================================================
-# Endpoint 4: Personalized User Feed (Placeholder)
+# Endpoint 4: Personalized User Feed (Production)
 # =============================================================================
 
 
@@ -459,8 +607,13 @@ async def get_personalized_feed(
 ) -> RecommendationsResponse:
     """Get personalized recommendation feed based on viewing history.
 
-    Uses weighted collaborative filtering on viewed papers to generate
-    personalized recommendations. Falls back to trending papers for new users.
+    Uses weighted collaborative filtering on viewed papers with:
+    - Time decay (recent views weighted more)
+    - Topic diversity (avoid echo chambers)
+    - Community diversity (cross-pollinate research areas)
+    - Impact boosting (surface high-quality papers)
+
+    Falls back to trending papers for new users (cold start).
 
     Args:
         user_session_id: User session identifier
@@ -474,40 +627,72 @@ async def get_personalized_feed(
     """
     logger.info("api_get_personalized_feed", user_session_id=user_session_id)
 
+    # Check cache first
+    cache_key = f"feed:{user_session_id}:{limit}"
+    cached = await cache.get(cache_key)
+    if cached:
+        logger.info("feed_cache_hit", user_session_id=user_session_id)
+        return cached
+
     try:
-        # Get user profile from Neo4j
+        # Get user viewing history from VIEWED relationships (more robust)
         async with client.session() as session:
             result = await session.run(
-                queries.GET_USER_PROFILE,
+                """
+                MATCH (u:UserProfile {session_id: $session_id})-[v:VIEWED]->(p:Paper)
+                RETURN p.openalex_id AS paper_id,
+                       v.weight AS weight,
+                       v.timestamp AS timestamp,
+                       p.community AS community,
+                       duration.inDays(v.timestamp, datetime()).days AS days_ago
+                ORDER BY v.timestamp DESC
+                LIMIT 20
+                """,
                 session_id=user_session_id,
             )
-            record = await result.single()
+            viewing_history = await result.data()
 
-        # Extract profile data or use defaults for new users
-        if record and record["profile"]:
-            profile = record["profile"]
-            viewed_papers = profile.get("viewed_papers", [])
-            paper_weights = profile.get("paper_weights", {})
-        else:
-            viewed_papers = []
-            paper_weights = {}
+        # Extract viewed papers with time-decayed weights
+        viewed_papers = []
+        paper_weights = {}
+        viewed_communities = set()
+
+        for record in viewing_history:
+            paper_id = str(record["paper_id"])
+            base_weight = float(record["weight"])
+            days_ago = int(record["days_ago"]) if record["days_ago"] else 0
+            community = record["community"]
+
+            # Apply exponential time decay (half-life = 7 days)
+            time_decay = 0.5 ** (days_ago / 7.0)
+            decayed_weight = base_weight * time_decay
+
+            viewed_papers.append(paper_id)
+            paper_weights[paper_id] = decayed_weight
+            if community is not None:
+                viewed_communities.add(community)
 
         # Cold start: No viewing history → return trending papers
         if not viewed_papers:
             logger.info("feed_cold_start", user_session_id=user_session_id)
 
-            # Get high-impact recent papers
+            # Get high-impact recent papers from diverse communities
             async with client.session() as session:
                 result = await session.run(
                     """
                     MATCH (p:Paper)
                     WHERE p.year >= 2020 AND p.impact_score IS NOT NULL
+                    WITH p
+                    ORDER BY p.impact_score DESC, p.citations DESC
+                    WITH p.community AS community, collect(p)[0..3] AS top_papers
+                    UNWIND top_papers AS p
                     RETURN p.openalex_id AS paper_id,
                            p.title AS title,
                            p.year AS year,
                            p.citations AS citations,
-                           p.impact_score AS impact_score
-                    ORDER BY p.impact_score DESC, p.citations DESC
+                           p.impact_score AS impact_score,
+                           p.community AS community
+                    ORDER BY p.impact_score DESC
                     LIMIT $limit
                     """,
                     limit=limit,
@@ -520,7 +705,9 @@ async def get_personalized_feed(
                     "title": str(rec["title"]),
                     "year": int(rec["year"]) if rec["year"] else None,
                     "citations": int(rec["citations"]) if rec["citations"] else 0,
-                    "impact_score": float(rec["impact_score"]) if rec["impact_score"] else None,
+                    "impact_score": (
+                        float(rec["impact_score"]) if rec["impact_score"] else None
+                    ),
                     "similarity_score": 1.0,
                     "recommendation_reason": "trending",
                     "component_scores": None,
@@ -528,7 +715,7 @@ async def get_personalized_feed(
                 for rec in records
             ]
 
-            return RecommendationsResponse(
+            response = RecommendationsResponse(
                 recommendations=[
                     RecommendationItem.model_validate(rec) for rec in recommendations
                 ],
@@ -537,15 +724,22 @@ async def get_personalized_feed(
                 cache_ttl_seconds=None,
             )
 
+            # Cache for 5 minutes (trending doesn't change often)
+            await cache.set(cache_key, response, ttl_seconds=300)
+            return response
+
         # Warm start: Build personalized feed from viewed papers
         logger.info(
             "feed_personalized",
             user_session_id=user_session_id,
             viewed_count=len(viewed_papers),
+            viewed_communities=len(viewed_communities),
         )
 
-        # Aggregate recommendations from all viewed papers (weighted)
+        # Aggregate recommendations from all viewed papers (weighted by time decay)
         candidate_scores: dict[str, float] = {}
+        candidate_metadata: dict[str, dict] = {}
+
         for paper_id in viewed_papers[:10]:  # Limit to most recent 10 views
             weight = paper_weights.get(paper_id, 1.0)
 
@@ -553,17 +747,28 @@ async def get_personalized_feed(
             try:
                 recs = await recommender.get_paper_recommendations(
                     paper_id=paper_id,
-                    limit=10,
+                    limit=15,  # Get more candidates for diversity
                 )
 
                 # Add weighted score to candidates
                 for rec in recs:
                     rec_id = rec["paper_id"]
                     if rec_id not in viewed_papers:  # Skip already viewed
-                        similarity = rec["similarity_score"]
+                        similarity = rec.get("combined_score", rec["similarity_score"])
+                        weighted_score = similarity * weight
+
+                        # Aggregate scores from multiple sources
                         candidate_scores[rec_id] = (
-                            candidate_scores.get(rec_id, 0.0) + similarity * weight
+                            candidate_scores.get(rec_id, 0.0) + weighted_score
                         )
+
+                        # Store metadata for diversity filtering
+                        if rec_id not in candidate_metadata:
+                            candidate_metadata[rec_id] = {
+                                "title": rec.get("title", ""),
+                                "year": rec.get("year"),
+                                "method": rec.get("recommendation_reason", "unknown"),
+                            }
 
             except Exception as e:
                 logger.warning(
@@ -578,11 +783,12 @@ async def get_personalized_feed(
             candidate_scores.items(),
             key=lambda x: x[1],
             reverse=True,
-        )[:limit * 2]  # Over-fetch for diversity filtering
+        )[:limit * 3]  # Over-fetch 3x for diversity filtering
 
-        # Fetch full paper details
+        # Fallback: No recommendations found, return trending papers
         if not sorted_candidates:
-            # No recommendations found, return trending papers
+            logger.warning("feed_no_candidates", user_session_id=user_session_id)
+            # Recursively call with "trending" session to get cold start response
             return await get_personalized_feed(
                 user_session_id="trending",
                 limit=limit,
@@ -593,6 +799,7 @@ async def get_personalized_feed(
 
         candidate_ids = [cid for cid, _ in sorted_candidates]
 
+        # Fetch full paper details including community for diversity filtering
         async with client.session() as session:
             result = await session.run(
                 """
@@ -602,7 +809,8 @@ async def get_personalized_feed(
                        p.title AS title,
                        p.year AS year,
                        p.citations AS citations,
-                       p.impact_score AS impact_score
+                       p.impact_score AS impact_score,
+                       p.community AS community
                 """,
                 paper_ids=candidate_ids,
             )
@@ -613,30 +821,90 @@ async def get_personalized_feed(
         for rec in records:
             rec_id = str(rec["paper_id"])
             aggregated_score = candidate_scores.get(rec_id, 0.0)
+            impact_score = (
+                float(rec["impact_score"]) if rec["impact_score"] else None
+            )
+            community = rec["community"]
+
+            # Boost score for high-impact papers (10% bonus)
+            final_score = aggregated_score
+            if impact_score and impact_score > 70:
+                final_score *= 1.1
+
+            # Boost score for papers from new communities (diversity bonus: 15%)
+            if community and community not in viewed_communities:
+                final_score *= 1.15
 
             recommendations.append({
                 "paper_id": rec_id,
                 "title": str(rec["title"]),
                 "year": int(rec["year"]) if rec["year"] else None,
                 "citations": int(rec["citations"]) if rec["citations"] else 0,
-                "impact_score": float(rec["impact_score"]) if rec["impact_score"] else None,
-                "similarity_score": aggregated_score,
+                "impact_score": impact_score,
+                "similarity_score": final_score,
                 "recommendation_reason": "personalized",
                 "component_scores": None,
+                "community": community,
             })
 
-        # Sort by aggregated score and trim to limit
-        recommendations.sort(key=lambda x: float(x["similarity_score"]), reverse=True)
-        recommendations = recommendations[:limit]
+        # Apply diversity filtering to avoid year/community clustering
+        recommendations_diverse = []
+        year_counts: dict[int | None, int] = {}
+        community_counts: dict[int | None, int] = {}
 
-        return RecommendationsResponse(
+        # Sort by final score first
+        recommendations.sort(key=lambda x: float(x["similarity_score"]), reverse=True)
+
+        for rec in recommendations:
+            year = rec["year"]
+            community = rec["community"]
+
+            # Apply diversity penalty if too many from same year/community
+            year_count = year_counts.get(year, 0)
+            community_count = community_counts.get(community, 0)
+
+            # Accept if diversity is good (max 3 per year, max 5 per community)
+            if year_count < 3 and community_count < 5:
+                # Remove temporary community field before returning
+                rec_copy = {k: v for k, v in rec.items() if k != "community"}
+                recommendations_diverse.append(rec_copy)
+                year_counts[year] = year_count + 1
+                community_counts[community] = community_count + 1
+
+            if len(recommendations_diverse) >= limit:
+                break
+
+        # If we don't have enough diverse recommendations, backfill
+        if len(recommendations_diverse) < limit:
+            for rec in recommendations:
+                if len(recommendations_diverse) >= limit:
+                    break
+                rec_id = rec["paper_id"]
+                if not any(r["paper_id"] == rec_id for r in recommendations_diverse):
+                    rec_copy = {k: v for k, v in rec.items() if k != "community"}
+                    recommendations_diverse.append(rec_copy)
+
+        response = RecommendationsResponse(
             recommendations=[
-                RecommendationItem.model_validate(rec) for rec in recommendations
+                RecommendationItem.model_validate(rec)
+                for rec in recommendations_diverse[:limit]
             ],
-            total=len(recommendations),
+            total=len(recommendations_diverse[:limit]),
             cached=False,
             cache_ttl_seconds=None,
         )
+
+        # Cache personalized feed for 2 minutes (balance freshness vs performance)
+        await cache.set(cache_key, response, ttl_seconds=120)
+
+        logger.info(
+            "feed_generated",
+            user_session_id=user_session_id,
+            total_recommendations=len(recommendations_diverse),
+            unique_communities=len(community_counts),
+        )
+
+        return response
 
     except Exception as e:
         logger.error("personalized_feed_failed", user_session_id=user_session_id, error=str(e))

@@ -11,10 +11,11 @@ import {
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
-import { use } from 'react';
+import { use, useState } from 'react';
 import { TopicDistribution } from '@/components/charts/TopicDistribution';
 import { BridgingPapers } from '@/components/community/BridgingPapers';
 import { CommunityGraph } from '@/components/community/CommunityGraph';
+import { YearFilterToggle } from '@/components/community/YearFilterToggle';
 import { PaperCard } from '@/components/paper/PaperCard';
 import { PaperGridSkeleton } from '@/components/paper/PaperCardSkeleton';
 import { Badge } from '@/components/ui/badge';
@@ -25,8 +26,9 @@ import { useCommunityTrending } from '@/lib/hooks/useCommunities';
 export default function CommunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const communityId = parseInt(id, 10);
+  const [minYear, setMinYear] = useState<number | null>(null); // Default: All Time
 
-  const { data: trendingData, isLoading } = useCommunityTrending(communityId);
+  const { data: trendingData, isLoading } = useCommunityTrending(communityId, 20, minYear);
 
   return (
     <div className="space-y-12 pb-20">
@@ -100,6 +102,7 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
                   High-centrality papers defining this thematic cluster
                 </p>
               </div>
+              <YearFilterToggle value={minYear} onChange={setMinYear} />
             </div>
 
             {isLoading ? (
@@ -107,7 +110,7 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <AnimatePresence mode="popLayout">
-                  {trendingData?.recommendations.map((paper, i) => (
+                  {trendingData?.trending_papers.map((paper, i) => (
                     <motion.div
                       key={paper.paper_id}
                       layout
@@ -127,7 +130,7 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
           <section>
             <BridgingPapers
               papers={
-                trendingData?.recommendations.filter((p) => (p.pagerank || 0) > 0.05).slice(0, 2) ||
+                trendingData?.trending_papers.filter((p) => (p.pagerank || 0) > 0.05).slice(0, 2) ||
                 []
               }
             />
@@ -141,7 +144,7 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
               Intra-Cluster Topology
             </h2>
           </div>
-          <CommunityGraph communityId={communityId} />
+          <CommunityGraph communityId={communityId} minYear={minYear} />
         </TabsContent>
 
         <TabsContent value="analytics" className="space-y-12">

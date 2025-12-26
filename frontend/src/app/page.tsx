@@ -8,16 +8,30 @@ import { PaperGridSkeleton } from '@/components/paper/PaperCardSkeleton';
 import { SearchBar } from '@/components/search/SearchBar';
 import { Button } from '@/components/ui/button';
 import { usePapers } from '@/lib/hooks/usePapers';
+import { useStats } from '@/lib/hooks/useStats';
 
 import type { RecommendationItem } from '@/lib/utils/validators';
 
 export default function HomePage() {
   const { data: papers, isLoading } = usePapers(6);
+  const { data: dbStats } = useStats();
 
   const stats = [
-    { label: 'Papers Tracked', value: '1,247', icon: BookOpen },
-    { label: 'Communities', value: '42', icon: Network },
-    { label: 'Total Citations', value: '15,893', icon: Users },
+    {
+      label: 'Papers Tracked',
+      value: dbStats?.total_papers.toLocaleString() ?? '...',
+      icon: BookOpen,
+    },
+    {
+      label: 'Communities',
+      value: dbStats?.total_communities.toLocaleString() ?? '...',
+      icon: Network,
+    },
+    {
+      label: 'Total Citations',
+      value: dbStats?.total_citations.toLocaleString() ?? '...',
+      icon: Users,
+    },
   ];
 
   return (

@@ -19,11 +19,12 @@ import { cn } from '@/lib/utils/cn';
 
 interface CommunityGraphProps {
   communityId: number;
+  minYear?: number | null;
   className?: string;
 }
 
-export function CommunityGraph({ communityId, className }: CommunityGraphProps) {
-  const { data, isLoading, error } = useCommunityCitationNetwork(communityId);
+export function CommunityGraph({ communityId, minYear, className }: CommunityGraphProps) {
+  const { data, isLoading, error } = useCommunityCitationNetwork(communityId, minYear);
 
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);

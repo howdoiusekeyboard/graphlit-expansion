@@ -12,18 +12,22 @@ export function useCommunities() {
   });
 }
 
-export function useCommunityTrending(communityId: number, limit = 20) {
+export function useCommunityTrending(
+  communityId: number,
+  limit = 20,
+  minYear?: number | null,
+) {
   return useQuery({
-    queryKey: ['community-trending', communityId, limit],
-    queryFn: () => getCommunityTrending(communityId, limit),
+    queryKey: ['community-trending', communityId, limit, minYear],
+    queryFn: () => getCommunityTrending(communityId, limit, minYear),
     enabled: !!communityId || communityId === 0,
   });
 }
 
-export function useCommunityCitationNetwork(communityId: number) {
+export function useCommunityCitationNetwork(communityId: number, minYear?: number | null) {
   return useQuery({
-    queryKey: ['community-network', communityId],
-    queryFn: () => getCommunityCitationNetwork(communityId),
+    queryKey: ['community-network', communityId, minYear],
+    queryFn: () => getCommunityCitationNetwork(communityId, minYear),
     enabled: !!communityId || communityId === 0,
   });
 }

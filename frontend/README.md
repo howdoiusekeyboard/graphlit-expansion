@@ -21,7 +21,7 @@ AI-Powered Citation Intelligence for Academic Research.
 2. **Configure Environment**:
    Create a `.env.local` file:
    ```env
-   NEXT_PUBLIC_API_URL=http://localhost:8000
+   NEXT_PUBLIC_API_URL=http://localhost:8080
    ```
 
 3. **Run Development Server**:

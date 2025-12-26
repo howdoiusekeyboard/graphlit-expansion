@@ -312,6 +312,8 @@ GET_COMMUNITY_TRENDING_PAPERS = """
 MATCH (p:Paper)
 WHERE p.community = $community_id
   AND ($min_year IS NULL OR p.year >= $min_year)
+  AND p.openalex_id IS NOT NULL
+  AND p.openalex_id <> 'None'
 RETURN p.openalex_id AS paper_id,
        p.title AS title,
        p.year AS year,
@@ -319,8 +321,41 @@ RETURN p.openalex_id AS paper_id,
        p.impact_score AS impact_score,
        p.pagerank AS pagerank,
        p.community AS community
-ORDER BY p.pagerank DESC, p.impact_score DESC
+ORDER BY COALESCE(p.pagerank, 0.0) DESC, COALESCE(p.impact_score, 0.0) DESC, p.citations DESC
 LIMIT $limit
+"""
+
+GET_COMMUNITY_CITATION_NETWORK = """
+MATCH (p:Paper)
+WHERE p.community = $community_id
+  AND ($min_year IS NULL OR p.year >= $min_year)
+  AND p.impact_score IS NOT NULL
+  AND p.openalex_id IS NOT NULL
+  AND p.openalex_id <> 'None'
+WITH p
+ORDER BY COALESCE(p.pagerank, 0.0) DESC, COALESCE(p.impact_score, 0.0) DESC
+LIMIT $limit
+
+WITH collect(p) AS community_papers
+UNWIND community_papers AS source_paper
+
+OPTIONAL MATCH (source_paper)-[:CITES]->(cited_paper:Paper)
+WHERE cited_paper IN community_papers
+
+WITH community_papers,
+     collect(DISTINCT {source: source_paper.openalex_id, target: cited_paper.openalex_id}) AS citation_edges
+
+RETURN {
+  papers: [paper IN community_papers | {
+    paper_id: paper.openalex_id,
+    title: paper.title,
+    year: paper.year,
+    citations: paper.citations,
+    impact_score: paper.impact_score,
+    community: paper.community
+  }],
+  citations: [edge IN citation_edges WHERE edge.target IS NOT NULL | edge]
+} AS network
 """
 
 # =============================================================================
@@ -415,8 +450,13 @@ LIMIT $limit
 GET_COMMUNITY_STATS = """
 MATCH (p:Paper)
 WHERE p.community IS NOT NULL
-WITH p.community AS community_id, count(p) AS size
-RETURN community_id, size
+WITH p.community AS community_id,
+     count(p) AS size,
+     avg(p.citations) AS avg_citations,
+     max(p.year) AS max_year,
+     min(p.year) AS min_year
+WHERE size >= 3
+RETURN community_id, size, avg_citations, max_year, min_year
 ORDER BY size DESC
 """
 
