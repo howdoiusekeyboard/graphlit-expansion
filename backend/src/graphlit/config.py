@@ -18,7 +18,7 @@ class OpenAlexSettings(BaseSettings):
     model_config = SettingsConfigDict(env_prefix="OPENALEX__")
 
     base_url: str = Field(
-        default="https://api.openalex.org",
+        default="https://api.openalex.org/",
         description="OpenAlex API base URL",
     )
     user_agent: str = Field(
