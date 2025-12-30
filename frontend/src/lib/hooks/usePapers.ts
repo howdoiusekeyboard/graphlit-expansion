@@ -13,8 +13,8 @@ const CitationNetworkSchema = z.object({
       citations: z.number(),
       impact_score: z.number().nullable(),
       community: z.number().nullable(),
-      x: z.number().optional(),
-      y: z.number().optional(),
+      x: z.number().nullable(),
+      y: z.number().nullable(),
     }),
   ),
   citations: z.array(

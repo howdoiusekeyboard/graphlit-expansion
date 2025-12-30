@@ -1,21 +1,25 @@
 'use client';
 
 import { Search } from 'lucide-react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useDebounce } from 'use-debounce';
 import { Input } from '@/components/ui/input';
 
 export function SearchBar() {
   const router = useRouter();
-  const [query, setQuery] = useState('');
+  const searchParams = useSearchParams();
+  const [query, setQuery] = useState(searchParams.get('q') || '');
   const [debouncedQuery] = useDebounce(query, 300);
 
   useEffect(() => {
     if (debouncedQuery.trim()) {
       router.push(`/search?q=${encodeURIComponent(debouncedQuery)}`);
+    } else if (query === '') {
+      // Clear query param when search is empty
+      router.push('/search');
     }
-  }, [debouncedQuery, router]);
+  }, [debouncedQuery, query, router]);
 
   return (
     <div className="relative w-full max-w-2xl">

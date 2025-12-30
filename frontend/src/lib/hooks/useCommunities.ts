@@ -3,6 +3,7 @@ import {
   getCommunities,
   getCommunityCitationNetwork,
   getCommunityTrending,
+  getCommunityAnalytics,
 } from '@/lib/api/communities';
 
 export function useCommunities() {
@@ -29,5 +30,14 @@ export function useCommunityCitationNetwork(communityId: number, minYear?: numbe
     queryKey: ['community-network', communityId, minYear],
     queryFn: () => getCommunityCitationNetwork(communityId, minYear),
     enabled: !!communityId || communityId === 0,
+  });
+}
+
+export function useCommunityAnalytics(communityId: number) {
+  return useQuery({
+    queryKey: ['community-analytics', communityId],
+    queryFn: () => getCommunityAnalytics(communityId),
+    enabled: !!communityId || communityId === 0,
+    staleTime: 1000 * 60 * 60, // 1 hour - analytics change slowly
   });
 }

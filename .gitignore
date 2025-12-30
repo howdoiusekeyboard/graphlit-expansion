@@ -37,3 +37,4 @@ nul
 
 # Egg info
 *.egg-info/
+/.serena

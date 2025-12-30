@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { useSearchParams } from 'next/navigation';
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PaperCard } from '@/components/paper/PaperCard';
 import { PaperGridSkeleton } from '@/components/paper/PaperCardSkeleton';
 import { AdvancedFilters } from '@/components/search/AdvancedFilters';
@@ -20,18 +20,32 @@ export default function SearchPage() {
   const [yearRange, setYearRange] = useState<[number, number]>([2015, 2025]);
   const [minImpact, setMinImpact] = useState(0);
 
-  const { mutate: search, data: results, isPending } = useQueryRecommendations();
+  const { mutate: search, data: results, isPending, error } = useQueryRecommendations();
 
-  // Trigger search when filters change
-  useMemo(() => {
-    if (topics.length > 0 || initialQuery) {
-      search({
-        topics: topics.length > 0 ? topics : [initialQuery],
-        year_min: yearRange[0],
-        year_max: yearRange[1],
-        limit: 20,
-      });
-    }
+  // Trigger search when filters change or on initial load
+  useEffect(() => {
+    // Build topics array from selected topics or search query from URL
+    const searchTopics = topics.length > 0
+      ? topics
+      : initialQuery
+        ? [initialQuery]
+        : [];
+
+    console.log('Triggering search with:', { searchTopics, year_min: yearRange[0], year_max: yearRange[1] });
+
+    search({
+      topics: searchTopics,
+      year_min: yearRange[0],
+      year_max: yearRange[1],
+      limit: 50,
+    }, {
+      onSuccess: (data) => {
+        console.log('Search successful:', data);
+      },
+      onError: (err) => {
+        console.error('Search error:', err);
+      },
+    });
   }, [topics, yearRange, initialQuery, search]);
 
   const handleClearFilters = () => {

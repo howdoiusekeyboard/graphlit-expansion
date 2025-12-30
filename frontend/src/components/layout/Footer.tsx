@@ -1,4 +1,4 @@
-import { Github, Twitter } from 'lucide-react';
+import { ExternalLink, Github } from 'lucide-react';
 import Link from 'next/link';
 
 export function Footer() {
@@ -21,14 +21,11 @@ export function Footer() {
             </p>
             <div className="flex gap-4">
               <Link
-                href="#"
+                href="https://github.com/howdoiusekeyboard/graphlit-expansion"
+                target="_blank"
+                rel="noopener noreferrer"
                 className="p-2 rounded-lg bg-secondary hover:bg-primary hover:text-primary-foreground transition-colors"
-              >
-                <Twitter className="h-5 w-5" />
-              </Link>
-              <Link
-                href="#"
-                className="p-2 rounded-lg bg-secondary hover:bg-primary hover:text-primary-foreground transition-colors"
+                aria-label="View on GitHub"
               >
                 <Github className="h-5 w-5" />
               </Link>
@@ -60,36 +57,46 @@ export function Footer() {
             <h4 className="font-black text-sm uppercase tracking-widest">Resources</h4>
             <ul className="space-y-2 text-sm font-bold text-muted-foreground">
               <li>
-                <Link href="#" className="hover:text-primary transition-colors">
+                <Link
+                  href="http://localhost:8080/docs"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary transition-colors inline-flex items-center gap-1"
+                >
                   API Documentation
+                  <ExternalLink className="h-3 w-3" />
                 </Link>
               </li>
               <li>
-                <Link href="#" className="hover:text-primary transition-colors">
+                <Link
+                  href="https://openalex.org"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary transition-colors inline-flex items-center gap-1"
+                >
                   OpenAlex Dataset
+                  <ExternalLink className="h-3 w-3" />
                 </Link>
               </li>
               <li>
-                <Link href="#" className="hover:text-primary transition-colors">
+                <Link
+                  href="https://en.wikipedia.org/wiki/Louvain_method"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-primary transition-colors inline-flex items-center gap-1"
+                >
                   Louvain Algorithm
+                  <ExternalLink className="h-3 w-3" />
                 </Link>
               </li>
             </ul>
           </div>
         </div>
 
-        <div className="mt-12 pt-8 border-t flex flex-col md:flex-row justify-between items-center gap-6">
-          <p className="text-xs font-bold text-muted-foreground uppercase tracking-widest">
+        <div className="mt-12 pt-8 border-t text-center">
+          <p className="text-xs font-black uppercase tracking-tighter text-muted-foreground">
             © 2025 GRAPHLIT INTELLIGENCE SYSTEMS. ALL RIGHTS RESERVED.
           </p>
-          <div className="flex gap-8 text-xs font-black uppercase tracking-tighter text-muted-foreground">
-            <Link href="#" className="hover:text-primary">
-              Privacy Protocol
-            </Link>
-            <Link href="#" className="hover:text-primary">
-              Terms of Service
-            </Link>
-          </div>
         </div>
       </div>
     </footer>

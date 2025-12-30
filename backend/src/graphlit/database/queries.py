@@ -208,11 +208,17 @@ GET_ALL_PAPERS_WITH_SCORES = """
 MATCH (p:Paper)
 WHERE ($year_min IS NULL OR p.year >= $year_min)
   AND ($year_max IS NULL OR p.year <= $year_max)
+  AND p.openalex_id IS NOT NULL
+  AND p.openalex_id <> 'None'
+  AND p.title IS NOT NULL
+  AND (
+    SIZE($topics) = 0
+    OR SIZE([topic IN $topics WHERE toLower(p.title) CONTAINS toLower(topic)]) > 0
+  )
 OPTIONAL MATCH (p)-[r:BELONGS_TO_TOPIC]->(t:Topic)
-WHERE SIZE($topics) = 0 OR t.name IN $topics
-WITH p, COLLECT(DISTINCT t.name) AS matched_topics, COUNT(DISTINCT t) AS topic_match_count
-WHERE topic_match_count > 0 OR SIZE($topics) = 0
-RETURN p.openalex_id AS paper_id,
+WITH p, COLLECT(DISTINCT t.name) AS matched_topics,
+     SIZE([topic IN $topics WHERE toLower(p.title) CONTAINS toLower(topic)]) AS topic_match_count
+RETURN DISTINCT p.openalex_id AS paper_id,
        p.title AS title,
        p.year AS year,
        p.citations AS citations,
@@ -458,6 +464,92 @@ WITH p.community AS community_id,
 WHERE size >= 3
 RETURN community_id, size, avg_citations, max_year, min_year
 ORDER BY size DESC
+"""
+
+GET_COMMUNITY_ANALYTICS = """
+// Get all papers in the community
+MATCH (p:Paper)
+WHERE p.community = $community_id
+  AND p.openalex_id IS NOT NULL
+  AND p.openalex_id <> 'None'
+WITH collect(p) AS community_papers, count(p) AS total_papers
+
+// Calculate network density (citation edges within community)
+WITH community_papers, total_papers,
+     [paper IN community_papers | paper.openalex_id] AS paper_ids
+UNWIND community_papers AS source
+OPTIONAL MATCH (source)-[:CITES]->(target:Paper)
+WHERE target.openalex_id IN paper_ids
+WITH community_papers, total_papers, paper_ids,
+     count(DISTINCT target) AS citations_count
+WITH community_papers, total_papers,
+     sum(citations_count) AS total_edges
+
+// Calculate possible edges
+WITH community_papers, total_papers, total_edges,
+     CASE
+       WHEN total_papers > 1 THEN total_papers * (total_papers - 1)
+       ELSE 1
+     END AS possible_edges
+
+// Calculate bridging nodes (PageRank > 0.3 - papers that bridge to other communities)
+WITH community_papers, total_papers, total_edges, possible_edges,
+     [paper IN community_papers WHERE paper.pagerank IS NOT NULL AND paper.pagerank > 0.3 | paper] AS bridging_papers
+
+// Calculate average PageRank
+WITH community_papers, total_papers, total_edges, possible_edges, bridging_papers,
+     reduce(sum = 0.0, paper IN community_papers | sum + COALESCE(paper.pagerank, 0.0)) AS total_pagerank
+
+// Calculate growth rate (papers published in recent years vs older)
+WITH community_papers, total_papers, total_edges, possible_edges, bridging_papers, total_pagerank,
+     [paper IN community_papers WHERE paper.year >= 2023 | paper] AS recent_papers,
+     [paper IN community_papers WHERE paper.year < 2023 | paper] AS older_papers
+WITH community_papers, total_papers, total_edges, possible_edges, bridging_papers, total_pagerank,
+     size(recent_papers) AS recent_count,
+     size(older_papers) AS older_count
+
+// Get topic distribution
+UNWIND community_papers AS paper
+OPTIONAL MATCH (paper)-[r:BELONGS_TO_TOPIC]->(t:Topic)
+WITH total_papers, total_edges, possible_edges, bridging_papers, total_pagerank,
+     recent_count, older_count,
+     t.name AS topic_name,
+     sum(COALESCE(r.score, 0)) AS topic_score,
+     count(DISTINCT paper) AS topic_paper_count
+WHERE topic_name IS NOT NULL
+
+// Group topics
+WITH total_papers, total_edges, possible_edges, bridging_papers, total_pagerank,
+     recent_count, older_count,
+     collect({
+       name: topic_name,
+       value: toInteger(topic_score * 100),
+       paper_count: topic_paper_count
+     }) AS topic_distribution
+
+// Return final analytics
+RETURN {
+  network_density: CASE
+    WHEN possible_edges > 0 THEN toFloat(total_edges) / toFloat(possible_edges)
+    ELSE 0.0
+  END,
+  centrality_mode: 'PageRank',
+  avg_pagerank: CASE
+    WHEN total_papers > 0 THEN total_pagerank / toFloat(total_papers)
+    ELSE 0.0
+  END,
+  bridging_nodes_percent: CASE
+    WHEN total_papers > 0 THEN toFloat(size(bridging_papers)) / toFloat(total_papers)
+    ELSE 0.0
+  END,
+  growth_rate: CASE
+    WHEN older_count > 0 THEN (toFloat(recent_count) - toFloat(older_count)) / toFloat(older_count)
+    WHEN recent_count > 0 THEN 1.0
+    ELSE 0.0
+  END,
+  topic_distribution: topic_distribution,
+  total_papers: total_papers
+} AS analytics
 """
 
 # =============================================================================

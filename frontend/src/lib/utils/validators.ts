@@ -31,14 +31,14 @@ export const PaperRecommendationsResponseSchema = z.object({
   recommendations: z.array(RecommendationItemSchema),
   total: z.number().int().nonnegative(),
   cached: z.boolean(),
-  cache_ttl_seconds: z.number().int().positive().optional(),
+  cache_ttl_seconds: z.number().int().positive().nullable().optional(),
   user_session_id: z.string().optional(),
   viewing_history_count: z.number().optional(),
 });
 
 // Query request schema
 export const QueryRequestSchema = z.object({
-  topics: z.array(z.string()).min(1, 'At least one topic required'),
+  topics: z.array(z.string()).default([]),
   year_min: z.number().int().min(1900).max(2100).optional(),
   year_max: z.number().int().min(1900).max(2100).optional(),
   exclude_paper_ids: z.array(z.string()).optional(),
@@ -91,6 +91,24 @@ export const TrendingPapersResponseSchema = z.object({
   total: z.number().int().nonnegative(),
 });
 
+// Topic distribution item schema
+export const TopicDistributionItemSchema = z.object({
+  name: z.string(),
+  value: z.number().int().nonnegative(),
+  paper_count: z.number().int().nonnegative(),
+});
+
+// Community analytics response schema
+export const CommunityAnalyticsResponseSchema = z.object({
+  network_density: z.number().min(0).max(1),
+  centrality_mode: z.string(),
+  avg_pagerank: z.number(),
+  bridging_nodes_percent: z.number().min(0).max(1),
+  growth_rate: z.number(),
+  topic_distribution: z.array(TopicDistributionItemSchema),
+  total_papers: z.number().int().nonnegative(),
+});
+
 // Export inferred types
 export type RecommendationItem = z.infer<typeof RecommendationItemSchema>;
 export type PaperRecommendationsResponse = z.infer<typeof PaperRecommendationsResponseSchema>;
@@ -101,3 +119,5 @@ export type QueryRequest = z.infer<typeof QueryRequestSchema>;
 export type SimilarityBreakdown = z.infer<typeof SimilarityBreakdownSchema>;
 export type TrendingPaperItem = z.infer<typeof TrendingPaperItemSchema>;
 export type TrendingPapersResponse = z.infer<typeof TrendingPapersResponseSchema>;
+export type TopicDistributionItem = z.infer<typeof TopicDistributionItemSchema>;
+export type CommunityAnalyticsResponse = z.infer<typeof CommunityAnalyticsResponseSchema>;

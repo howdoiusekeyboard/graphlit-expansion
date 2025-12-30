@@ -21,7 +21,7 @@ import { PaperGridSkeleton } from '@/components/paper/PaperCardSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useCommunityTrending } from '@/lib/hooks/useCommunities';
+import { useCommunityTrending, useCommunityAnalytics } from '@/lib/hooks/useCommunities';
 
 export default function CommunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -29,6 +29,7 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
   const [minYear, setMinYear] = useState<number | null>(null); // Default: All Time
 
   const { data: trendingData, isLoading } = useCommunityTrending(communityId, 20, minYear);
+  const { data: analyticsData, isLoading: isLoadingAnalytics } = useCommunityAnalytics(communityId);
 
   return (
     <div className="space-y-12 pb-20">
@@ -154,14 +155,17 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
                 <PieChartIcon className="h-5 w-5 text-primary" />
                 Thematic Distribution
               </h3>
-              <TopicDistribution
-                data={[
-                  { name: 'Machine Learning', value: 400 },
-                  { name: 'Graph Theory', value: 300 },
-                  { name: 'NLP', value: 300 },
-                  { name: 'Computer Vision', value: 200 },
-                ]}
-              />
+              {isLoadingAnalytics ? (
+                <div className="flex items-center justify-center h-64">
+                  <div className="text-muted-foreground">Loading analytics...</div>
+                </div>
+              ) : analyticsData && analyticsData.topic_distribution.length > 0 ? (
+                <TopicDistribution data={analyticsData.topic_distribution} />
+              ) : (
+                <div className="flex items-center justify-center h-64">
+                  <div className="text-muted-foreground">No topic data available</div>
+                </div>
+              )}
             </section>
 
             <section className="p-8 rounded-[2.5rem] border bg-card/50 space-y-6">
@@ -169,29 +173,51 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
                 <LayoutGrid className="h-5 w-5 text-primary" />
                 Cluster Vitality
               </h3>
-              <div className="grid grid-cols-2 gap-4">
-                {[
-                  { label: 'Network Density', value: '0.84', icon: Network },
-                  {
-                    label: 'Centrality Mode',
-                    value: 'PageRank',
-                    icon: Sparkles,
-                    color: 'text-orange-500',
-                  },
-                  { label: 'Bridging Nodes', value: '12.4%', icon: Users },
-                  { label: 'Growth Rate', value: '+15%', icon: TrendingUp },
-                ].map((stat) => (
-                  <div key={stat.label} className="p-4 rounded-2xl bg-muted/50 border space-y-2">
-                    <stat.icon className="h-4 w-4 text-primary" />
-                    <div>
-                      <div className="text-[8px] font-black uppercase text-muted-foreground">
-                        {stat.label}
+              {isLoadingAnalytics ? (
+                <div className="flex items-center justify-center h-32">
+                  <div className="text-muted-foreground">Loading analytics...</div>
+                </div>
+              ) : analyticsData ? (
+                <div className="grid grid-cols-2 gap-4">
+                  {[
+                    {
+                      label: 'Network Density',
+                      value: analyticsData.network_density.toFixed(2),
+                      icon: Network,
+                    },
+                    {
+                      label: 'Centrality Mode',
+                      value: analyticsData.centrality_mode,
+                      icon: Sparkles,
+                      color: 'text-orange-500',
+                    },
+                    {
+                      label: 'Bridging Nodes',
+                      value: `${(analyticsData.bridging_nodes_percent * 100).toFixed(1)}%`,
+                      icon: Users,
+                    },
+                    {
+                      label: 'Growth Rate',
+                      value: `${analyticsData.growth_rate >= 0 ? '+' : ''}${(analyticsData.growth_rate * 100).toFixed(0)}%`,
+                      icon: TrendingUp,
+                    },
+                  ].map((stat) => (
+                    <div key={stat.label} className="p-4 rounded-2xl bg-muted/50 border space-y-2">
+                      <stat.icon className="h-4 w-4 text-primary" />
+                      <div>
+                        <div className="text-[8px] font-black uppercase text-muted-foreground">
+                          {stat.label}
+                        </div>
+                        <div className="text-lg font-black tracking-tight">{stat.value}</div>
                       </div>
-                      <div className="text-lg font-black tracking-tight">{stat.value}</div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="flex items-center justify-center h-32">
+                  <div className="text-muted-foreground">No analytics available</div>
+                </div>
+              )}
             </section>
           </div>
         </TabsContent>

@@ -16,7 +16,7 @@ export function CommunityCard({ community }: { community: CommunityListItem }) {
             variant="outline"
             className="px-3 py-1 text-xs font-black bg-primary/10 text-primary border-primary/20 uppercase tracking-widest"
           >
-            NODE: {community.id}
+            CLUSTER {community.id}
           </Badge>
           {community.avg_impact !== null && (
             <div className="flex items-center gap-1.5 text-xs font-black text-orange-500 uppercase tracking-tighter">

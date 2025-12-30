@@ -320,9 +320,8 @@ async def query_recommendations(
                 ),
                 "recommendation_reason": "topic_match" if request.topics else "high_impact",
                 "component_scores": {
-                    "matched_topics": rec["matched_topics"],
-                    "topic_match_count": rec["topic_match_count"],
-                },
+                    "topic_match_count": float(rec["topic_match_count"]),
+                } if request.topics else None,
             }
             for rec in records
             if rec["paper_id"] not in request.exclude_papers
@@ -494,6 +493,134 @@ async def get_trending_papers(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to fetch trending papers: {str(e)}",
+        ) from e
+
+
+class TopicDistributionItem(BaseModel):
+    """Topic distribution item."""
+
+    name: str
+    value: int
+    paper_count: int
+
+
+class CommunityAnalyticsResponse(BaseModel):
+    """Community analytics response."""
+
+    network_density: float = Field(..., description="Network density (0-1)")
+    centrality_mode: str = Field(..., description="Primary centrality metric used")
+    avg_pagerank: float = Field(..., description="Average PageRank score")
+    bridging_nodes_percent: float = Field(..., description="Percentage of bridging nodes")
+    growth_rate: float = Field(..., description="Citation growth rate")
+    topic_distribution: list[TopicDistributionItem] = Field(..., description="Topic distribution")
+    total_papers: int = Field(..., description="Total papers in cluster")
+
+
+@router.get("/community/{community_id}/analytics", response_model=CommunityAnalyticsResponse)
+async def get_community_analytics(
+    community_id: int,
+    client: Neo4jClient = Depends(get_neo4j_client),
+    cache: InMemoryCache = Depends(get_cache),
+) -> CommunityAnalyticsResponse:
+    """Get analytics for a specific community cluster.
+
+    Returns comprehensive metrics including network topology,
+    centrality analysis, growth trends, and thematic distribution.
+
+    Args:
+        community_id: Community identifier
+        client: Neo4j database client
+        cache: In-memory cache instance
+
+    Returns:
+        CommunityAnalyticsResponse with cluster vitality and thematic metrics
+
+    Raises:
+        HTTPException: 404 if community not found, 500 on query error
+    """
+    logger.info("api_get_community_analytics", community_id=community_id)
+
+    # Check cache first (1-hour TTL since this is relatively static)
+    cache_key = f"community_analytics:{community_id}"
+    cached = await cache.get(cache_key)
+    if cached:
+        logger.info("community_analytics_cache_hit", community_id=community_id)
+        return CommunityAnalyticsResponse(**cached)
+
+    try:
+        async with client.session() as session:
+            # Check if community exists first
+            check_query = """
+            MATCH (p:Paper)
+            WHERE p.community = $community_id
+            RETURN count(p) AS total
+            """
+            check_result = await session.run(check_query, community_id=community_id)
+            check_record = await check_result.single()
+
+            if not check_record or check_record["total"] == 0:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"Community {community_id} not found"
+                )
+
+            # Fetch analytics
+            result = await session.run(
+                queries.GET_COMMUNITY_ANALYTICS,
+                community_id=community_id,
+            )
+            record = await result.single()
+
+            if not record or not record["analytics"]:
+                logger.warning("community_analytics_empty", community_id=community_id)
+                # Return default values for empty community
+                return CommunityAnalyticsResponse(
+                    network_density=0.0,
+                    centrality_mode="PageRank",
+                    avg_pagerank=0.0,
+                    bridging_nodes_percent=0.0,
+                    growth_rate=0.0,
+                    topic_distribution=[],
+                    total_papers=0,
+                )
+
+            analytics_data = record["analytics"]
+
+            # Parse topic distribution
+            topic_dist = [
+                TopicDistributionItem(**topic)
+                for topic in analytics_data.get("topic_distribution", [])
+            ]
+
+            response = CommunityAnalyticsResponse(
+                network_density=float(analytics_data["network_density"]),
+                centrality_mode=str(analytics_data["centrality_mode"]),
+                avg_pagerank=float(analytics_data["avg_pagerank"]),
+                bridging_nodes_percent=float(analytics_data["bridging_nodes_percent"]),
+                growth_rate=float(analytics_data["growth_rate"]),
+                topic_distribution=topic_dist,
+                total_papers=int(analytics_data["total_papers"]),
+            )
+
+            # Cache for 1 hour (analytics change slowly)
+            await cache.set(cache_key, response.model_dump(), ttl_seconds=3600)
+
+            logger.info(
+                "community_analytics_success",
+                community_id=community_id,
+                total_papers=response.total_papers,
+                topic_count=len(topic_dist),
+            )
+
+            return response
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error("community_analytics_failed", community_id=community_id, error=str(e))
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch community analytics: {str(e)}"
         ) from e
 
 
@@ -1104,8 +1231,12 @@ async def get_communities(
             query = """
             MATCH (p:Paper)
             WHERE p.community IS NOT NULL
+              AND p.openalex_id IS NOT NULL
+              AND p.openalex_id <> 'None'
             WITH p.community AS comm_id, count(p) AS paper_count, avg(p.impact_score) AS avg_impact
             MATCH (p2:Paper {community: comm_id})-[:BELONGS_TO_TOPIC]->(t:Topic)
+            WHERE p2.openalex_id IS NOT NULL
+              AND p2.openalex_id <> 'None'
             WITH comm_id, paper_count, avg_impact, t.name AS topic_name, count(p2) AS topic_weight
             ORDER BY topic_weight DESC
             WITH comm_id, paper_count, avg_impact, collect(topic_name)[0..5] AS top_topics
@@ -1148,7 +1279,7 @@ class ViewTrackRequest(BaseModel):
 async def track_view(
     request: ViewTrackRequest,
     client: Neo4jClient = Depends(get_neo4j_client),
-) -> None:
+):
     """Track a paper view for personalization.
 
     Stores the view in the user's profile (Neo4j) with default engagement weight.

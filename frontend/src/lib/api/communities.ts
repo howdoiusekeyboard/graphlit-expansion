@@ -3,6 +3,8 @@ import {
   CommunitiesResponseSchema,
   type TrendingPapersResponse,
   TrendingPapersResponseSchema,
+  type CommunityAnalyticsResponse,
+  CommunityAnalyticsResponseSchema,
 } from '@/lib/utils/validators';
 import { type CitationNetwork } from '@/lib/hooks/usePapers';
 import { z } from 'zod';
@@ -17,8 +19,8 @@ const CitationNetworkResponseSchema = z.object({
       citations: z.number(),
       impact_score: z.number().nullable(),
       community: z.number().nullable(),
-      x: z.number().optional(),
-      y: z.number().optional(),
+      x: z.number().nullable(),
+      y: z.number().nullable(),
     }),
   ),
   citations: z.array(
@@ -67,4 +69,14 @@ export async function getCommunityCitationNetwork(
   );
 
   return CitationNetworkResponseSchema.parse(response.data);
+}
+
+export async function getCommunityAnalytics(
+  communityId: number,
+): Promise<CommunityAnalyticsResponse> {
+  const response = await apiClient.get(
+    `/api/v1/recommendations/community/${communityId}/analytics`,
+  );
+
+  return CommunityAnalyticsResponseSchema.parse(response.data);
 }
