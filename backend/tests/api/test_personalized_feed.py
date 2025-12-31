@@ -2,16 +2,30 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
+
 import pytest
 from fastapi.testclient import TestClient
 
+from graphlit.api import dependencies
 from graphlit.api.main import app
 
 
 @pytest.fixture
-def client() -> TestClient:
-    """Create FastAPI test client."""
-    return TestClient(app)
+def client() -> Generator[TestClient, None, None]:
+    """Create FastAPI test client and reset singletons after each test."""
+    # Reset singleton dependencies to avoid event loop issues between requests
+    dependencies._neo4j_client = None
+    dependencies._cache = None
+    dependencies._recommender = None
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+    # Clean up singletons after test
+    dependencies._neo4j_client = None
+    dependencies._cache = None
+    dependencies._recommender = None
 
 
 class TestPersonalizedFeed:

@@ -370,12 +370,10 @@ RETURN {
 
 MERGE_USER_PROFILE = """
 MERGE (u:UserProfile {session_id: $session_id})
+ON CREATE SET u.created_at = datetime()
 SET u.updated_at = datetime(),
     u.viewed_papers = $viewed_papers,
-    u.paper_weights = $paper_weights,
-    u.preferred_topics = $preferred_topics,
     u.preferred_communities = $preferred_communities
-ON CREATE SET u.created_at = datetime()
 RETURN u.session_id AS session_id
 """
 
@@ -384,8 +382,6 @@ MATCH (u:UserProfile {session_id: $session_id})
 RETURN {
     session_id: u.session_id,
     viewed_papers: u.viewed_papers,
-    paper_weights: u.paper_weights,
-    preferred_topics: u.preferred_topics,
     preferred_communities: u.preferred_communities,
     created_at: toString(u.created_at),
     updated_at: toString(u.updated_at)
@@ -403,10 +399,6 @@ SET u.viewed_papers = CASE
     WHEN $paper_id IN u.viewed_papers THEN u.viewed_papers
     ELSE u.viewed_papers + [$paper_id]
 END,
-    u.paper_weights = CASE
-        WHEN u.paper_weights IS NULL THEN {($paper_id): $weight}
-        ELSE u.paper_weights + {($paper_id): $weight}
-    END,
     u.updated_at = datetime()
 RETURN u.session_id AS session_id
 """

@@ -1034,7 +1034,7 @@ async def get_personalized_feed(
         return response
 
     except Exception as e:
-        logger.error("personalized_feed_failed", user_session_id=user_session_id, error=str(e))
+        logger.error("personalized_feed_failed", user_session_id=user_session_id, error=str(e), exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate personalized feed: {str(e)}",
@@ -1299,8 +1299,6 @@ async def track_view(
                 queries.MERGE_USER_PROFILE,
                 session_id=request.user_session_id,
                 viewed_papers=[],
-                paper_weights={},
-                preferred_topics={},
                 preferred_communities=[],
             )
 

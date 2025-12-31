@@ -15,11 +15,8 @@ export function SearchBar() {
   useEffect(() => {
     if (debouncedQuery.trim()) {
       router.push(`/search?q=${encodeURIComponent(debouncedQuery)}`);
-    } else if (query === '') {
-      // Clear query param when search is empty
-      router.push('/search');
     }
-  }, [debouncedQuery, query, router]);
+  }, [debouncedQuery, router]);
 
   return (
     <div className="relative w-full max-w-2xl">
