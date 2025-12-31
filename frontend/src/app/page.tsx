@@ -98,6 +98,11 @@ export default function HomePage() {
                 <div className="text-sm font-bold text-muted-foreground uppercase tracking-widest">
                   {stat.label}
                 </div>
+                {stat.label === 'Communities' && (
+                  <p className="text-xs text-muted-foreground/70 font-medium italic pt-2">
+                    Minimum 3 papers
+                  </p>
+                )}
               </div>
             </motion.div>
           ))}

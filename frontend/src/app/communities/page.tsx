@@ -1,14 +1,22 @@
 'use client';
 
+import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { LayoutGrid, Sparkles, TrendingUp } from 'lucide-react';
+import { Filter, LayoutGrid, Sparkles, TrendingUp } from 'lucide-react';
 import { CommunityCard } from '@/components/community/CommunityCard';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useCommunities } from '@/lib/hooks/useCommunities';
 
 export default function CommunitiesPage() {
   const { data, isLoading } = useCommunities();
+  const [minPapers, setMinPapers] = useState<number>(3);
+
+  // Filter communities client-side
+  const filteredCommunities = data?.communities.filter(
+    (community) => community.paper_count >= minPapers
+  );
 
   return (
     <div className="space-y-12 pb-20">
@@ -29,6 +37,40 @@ export default function CommunitiesPage() {
         </p>
       </header>
 
+      {/* Filter Control */}
+      <div className="flex items-center gap-6 p-6 rounded-3xl border bg-card/50 backdrop-blur-sm">
+        <div className="flex items-center gap-3">
+          <Filter className="h-5 w-5 text-primary" />
+          <label
+            htmlFor="min-papers-filter"
+            className="text-xs font-black uppercase tracking-widest text-muted-foreground"
+          >
+            Min Papers
+          </label>
+        </div>
+
+        <Input
+          id="min-papers-filter"
+          type="text"
+          inputMode="numeric"
+          pattern="[0-9]*"
+          value={minPapers}
+          onChange={(e) => {
+            const value = e.target.value.replace(/\D/g, '');
+            const num = value === '' ? 1 : parseInt(value, 10);
+            if (num >= 1 && num <= 999) {
+              setMinPapers(num);
+            }
+          }}
+          className="w-24 text-center font-black"
+          aria-label="Minimum papers per community"
+        />
+
+        <span className="text-xs text-muted-foreground font-medium italic">
+          Showing {filteredCommunities?.length ?? 0} of {data?.total ?? 0} clusters
+        </span>
+      </div>
+
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {Array.from({ length: 6 }).map((_, i) => (
@@ -37,7 +79,7 @@ export default function CommunitiesPage() {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {data?.communities.map((community, i) => (
+          {filteredCommunities?.map((community, i) => (
             <motion.div
               key={community.id}
               initial={{ opacity: 0, y: 20 }}
@@ -47,6 +89,18 @@ export default function CommunitiesPage() {
               <CommunityCard community={community} />
             </motion.div>
           ))}
+        </div>
+      )}
+
+      {/* Empty State */}
+      {!isLoading && filteredCommunities?.length === 0 && (
+        <div className="text-center py-16 space-y-4">
+          <p className="text-lg font-black text-muted-foreground uppercase tracking-wider">
+            No clusters match filter
+          </p>
+          <p className="text-sm text-muted-foreground font-medium italic">
+            Try lowering the minimum paper threshold
+          </p>
         </div>
       )}
 
