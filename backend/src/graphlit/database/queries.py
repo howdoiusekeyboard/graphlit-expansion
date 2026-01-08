@@ -349,7 +349,10 @@ OPTIONAL MATCH (source_paper)-[:CITES]->(cited_paper:Paper)
 WHERE cited_paper IN community_papers
 
 WITH community_papers,
-     collect(DISTINCT {source: source_paper.openalex_id, target: cited_paper.openalex_id}) AS citation_edges
+     collect(DISTINCT {
+       source: source_paper.openalex_id,
+       target: cited_paper.openalex_id
+     }) AS citation_edges
 
 RETURN {
   papers: [paper IN community_papers | {
@@ -486,11 +489,16 @@ WITH community_papers, total_papers, total_edges,
 
 // Calculate bridging nodes (PageRank > 0.3 - papers that bridge to other communities)
 WITH community_papers, total_papers, total_edges, possible_edges,
-     [paper IN community_papers WHERE paper.pagerank IS NOT NULL AND paper.pagerank > 0.3 | paper] AS bridging_papers
+     [paper IN community_papers
+      WHERE paper.pagerank IS NOT NULL AND paper.pagerank > 0.3
+      | paper] AS bridging_papers
 
 // Calculate average PageRank
 WITH community_papers, total_papers, total_edges, possible_edges, bridging_papers,
-     reduce(sum = 0.0, paper IN community_papers | sum + COALESCE(paper.pagerank, 0.0)) AS total_pagerank
+     reduce(
+       sum = 0.0,
+       paper IN community_papers | sum + COALESCE(paper.pagerank, 0.0)
+     ) AS total_pagerank
 
 // Calculate growth rate (papers published in recent years vs older)
 WITH community_papers, total_papers, total_edges, possible_edges, bridging_papers, total_pagerank,

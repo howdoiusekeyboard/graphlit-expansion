@@ -1,6 +1,6 @@
 # GraphLit ResearchRadar Frontend
 
-AI-Powered Citation Intelligence for Academic Research.
+Graph DBMS Citation Intelligence for Academic Research.
 
 ## Tech Stack
 - **Framework**: Next.js 16.1.0 (App Router)

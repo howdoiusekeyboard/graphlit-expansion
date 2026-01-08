@@ -46,7 +46,7 @@ export default function HomePage() {
             className="space-y-4"
           >
             <h1 className="text-6xl md:text-8xl font-black tracking-tighter leading-tight">
-              AI-Powered <span className="text-primary">Citation</span> Intelligence
+              Graph DBMS <span className="text-primary">Citation</span> Intelligence
             </h1>
             <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto font-medium">
               Discover academic breakthroughs through collaborative filtering, community detection,

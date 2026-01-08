@@ -12,8 +12,10 @@ Endpoints:
 
 from __future__ import annotations
 
+from typing import TypedDict
+
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
 from graphlit.api.dependencies import get_cache, get_neo4j_client, get_recommender
@@ -74,6 +76,18 @@ class RecommendationsResponse(BaseModel):
     total: int = Field(..., description="Number of recommendations returned")
     cached: bool = Field(..., description="Whether result was cached")
     cache_ttl_seconds: int | None = Field(None, description="Cache TTL if cached")
+
+
+class _FeedRecommendation(TypedDict):
+    paper_id: str
+    title: str
+    year: int | None
+    citations: int
+    impact_score: float | None
+    similarity_score: float
+    recommendation_reason: str
+    component_scores: dict[str, float] | None
+    community: int | None
 
 
 class CommunityListItem(BaseModel):
@@ -412,7 +426,12 @@ async def get_trending_papers(
             MATCH (p:Paper)
             WHERE p.community = $community_id
             RETURN count(p) AS total,
-                   sum(CASE WHEN $min_year IS NULL OR p.year >= $min_year THEN 1 ELSE 0 END) AS matching
+                   sum(
+                       CASE
+                           WHEN $min_year IS NULL OR p.year >= $min_year THEN 1
+                           ELSE 0
+                       END
+                   ) AS matching
             """
             check_result = await session.run(
                 check_query,
@@ -650,7 +669,12 @@ async def get_community_network(
     Raises:
         HTTPException: 404 if community not found, 500 on query error
     """
-    logger.info("api_get_community_network", community_id=community_id, min_year=min_year, limit=limit)
+    logger.info(
+        "api_get_community_network",
+        community_id=community_id,
+        min_year=min_year,
+        limit=limit,
+    )
 
     # Check cache first (4-hour TTL)
     cache_key = f"community_network:{community_id}:{min_year}:{limit}"
@@ -757,9 +781,9 @@ async def get_personalized_feed(
     # Check cache first
     cache_key = f"feed:{user_session_id}:{limit}"
     cached = await cache.get(cache_key)
-    if cached:
+    if cached is not None:
         logger.info("feed_cache_hit", user_session_id=user_session_id)
-        return cached
+        return RecommendationsResponse.model_validate(cached)
 
     try:
         # Get user viewing history from VIEWED relationships (more robust)
@@ -782,7 +806,7 @@ async def get_personalized_feed(
         # Extract viewed papers with time-decayed weights
         viewed_papers = []
         paper_weights = {}
-        viewed_communities = set()
+        viewed_communities: set[int] = set()
 
         for record in viewing_history:
             paper_id = str(record["paper_id"])
@@ -797,7 +821,7 @@ async def get_personalized_feed(
             viewed_papers.append(paper_id)
             paper_weights[paper_id] = decayed_weight
             if community is not None:
-                viewed_communities.add(community)
+                viewed_communities.add(int(community))
 
         # Cold start: No viewing history → return trending papers
         if not viewed_papers:
@@ -865,7 +889,7 @@ async def get_personalized_feed(
 
         # Aggregate recommendations from all viewed papers (weighted by time decay)
         candidate_scores: dict[str, float] = {}
-        candidate_metadata: dict[str, dict] = {}
+        candidate_metadata: dict[str, dict[str, object]] = {}
 
         for paper_id in viewed_papers[:10]:  # Limit to most recent 10 views
             weight = paper_weights.get(paper_id, 1.0)
@@ -944,14 +968,14 @@ async def get_personalized_feed(
             records = await result.data()
 
         # Create recommendation list with aggregated scores
-        recommendations = []
-        for rec in records:
-            rec_id = str(rec["paper_id"])
+        scored_candidates: list[_FeedRecommendation] = []
+        for record in records:
+            rec_id = str(record["paper_id"])
             aggregated_score = candidate_scores.get(rec_id, 0.0)
             impact_score = (
-                float(rec["impact_score"]) if rec["impact_score"] else None
+                float(record["impact_score"]) if record["impact_score"] else None
             )
-            community = rec["community"]
+            community = int(record["community"]) if record["community"] is not None else None
 
             # Boost score for high-impact papers (10% bonus)
             final_score = aggregated_score
@@ -959,14 +983,14 @@ async def get_personalized_feed(
                 final_score *= 1.1
 
             # Boost score for papers from new communities (diversity bonus: 15%)
-            if community and community not in viewed_communities:
+            if community is not None and community not in viewed_communities:
                 final_score *= 1.15
 
-            recommendations.append({
+            scored_candidates.append({
                 "paper_id": rec_id,
-                "title": str(rec["title"]),
-                "year": int(rec["year"]) if rec["year"] else None,
-                "citations": int(rec["citations"]) if rec["citations"] else 0,
+                "title": str(record["title"]),
+                "year": int(record["year"]) if record["year"] else None,
+                "citations": int(record["citations"]) if record["citations"] else 0,
                 "impact_score": impact_score,
                 "similarity_score": final_score,
                 "recommendation_reason": "personalized",
@@ -975,16 +999,16 @@ async def get_personalized_feed(
             })
 
         # Apply diversity filtering to avoid year/community clustering
-        recommendations_diverse = []
+        recommendations_diverse: list[dict[str, object]] = []
         year_counts: dict[int | None, int] = {}
         community_counts: dict[int | None, int] = {}
 
         # Sort by final score first
-        recommendations.sort(key=lambda x: float(x["similarity_score"]), reverse=True)
+        scored_candidates.sort(key=lambda x: x["similarity_score"], reverse=True)
 
-        for rec in recommendations:
-            year = rec["year"]
-            community = rec["community"]
+        for candidate in scored_candidates:
+            year = candidate["year"]
+            community = candidate["community"]
 
             # Apply diversity penalty if too many from same year/community
             year_count = year_counts.get(year, 0)
@@ -993,7 +1017,7 @@ async def get_personalized_feed(
             # Accept if diversity is good (max 3 per year, max 5 per community)
             if year_count < 3 and community_count < 5:
                 # Remove temporary community field before returning
-                rec_copy = {k: v for k, v in rec.items() if k != "community"}
+                rec_copy = {k: v for k, v in candidate.items() if k != "community"}
                 recommendations_diverse.append(rec_copy)
                 year_counts[year] = year_count + 1
                 community_counts[community] = community_count + 1
@@ -1003,12 +1027,12 @@ async def get_personalized_feed(
 
         # If we don't have enough diverse recommendations, backfill
         if len(recommendations_diverse) < limit:
-            for rec in recommendations:
+            for candidate in scored_candidates:
                 if len(recommendations_diverse) >= limit:
                     break
-                rec_id = rec["paper_id"]
+                rec_id = candidate["paper_id"]
                 if not any(r["paper_id"] == rec_id for r in recommendations_diverse):
-                    rec_copy = {k: v for k, v in rec.items() if k != "community"}
+                    rec_copy = {k: v for k, v in candidate.items() if k != "community"}
                     recommendations_diverse.append(rec_copy)
 
         response = RecommendationsResponse(
@@ -1034,7 +1058,12 @@ async def get_personalized_feed(
         return response
 
     except Exception as e:
-        logger.error("personalized_feed_failed", user_session_id=user_session_id, error=str(e), exc_info=True)
+        logger.error(
+            "personalized_feed_failed",
+            user_session_id=user_session_id,
+            error=str(e),
+            exc_info=True,
+        )
         raise HTTPException(
             status_code=500,
             detail=f"Failed to generate personalized feed: {str(e)}",
@@ -1275,11 +1304,11 @@ class ViewTrackRequest(BaseModel):
     paper_id: str
 
 
-@router.post("/track/view", status_code=204)
+@router.post("/track/view", status_code=204, response_class=Response)
 async def track_view(
     request: ViewTrackRequest,
     client: Neo4jClient = Depends(get_neo4j_client),
-):
+) -> Response:
     """Track a paper view for personalization.
 
     Stores the view in the user's profile (Neo4j) with default engagement weight.
@@ -1325,4 +1354,4 @@ async def track_view(
         )
         # Don't fail the request if tracking fails
 
-    return
+    return Response(status_code=204)

@@ -13,7 +13,7 @@ const jetbrainsMono = JetBrains_Mono({
 
 export const metadata: Metadata = {
   title: 'GraphLit ResearchRadar | AI Citation Intelligence',
-  description: 'AI-powered citation intelligence and academic research discovery platform.',
+  description: 'Graph DBMS citation intelligence and academic research discovery platform.',
 };
 
 export default function RootLayout({

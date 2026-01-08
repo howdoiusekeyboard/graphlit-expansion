@@ -2,21 +2,48 @@
 
 from __future__ import annotations
 
+import socket
 from collections.abc import Generator
+from urllib.parse import urlparse
 
 import pytest
 from fastapi.testclient import TestClient
 
 from graphlit.api import dependencies
 from graphlit.api.main import app
+from graphlit.config import get_settings
+
+
+def _neo4j_is_reachable() -> bool:
+    """Return True if the configured Neo4j instance is reachable.
+
+    These API tests exercise endpoints that depend on a live Neo4j instance.
+    When Neo4j is not running (e.g., local dev without DB), skip the module.
+    """
+    uri = get_settings().neo4j.uri
+    parsed = urlparse(uri)
+    host = parsed.hostname or "localhost"
+    port = parsed.port or 7687
+
+    try:
+        with socket.create_connection((host, port), timeout=1.0):
+            return True
+    except OSError:
+        return False
+
+
+pytestmark = pytest.mark.skipif(
+    not _neo4j_is_reachable(),
+    reason="Neo4j is not running/reachable; skipping API integration tests.",
+)
 
 
 @pytest.fixture
-def client() -> Generator[TestClient, None, None]:
+def client() -> Generator[TestClient]:
     """Create FastAPI test client and reset singletons after each test."""
     # Reset singleton dependencies to avoid event loop issues between requests
     dependencies._neo4j_client = None
-    dependencies._cache = None
+    dependencies._memory_cache = None
     dependencies._recommender = None
 
     with TestClient(app) as test_client:
@@ -24,7 +51,7 @@ def client() -> Generator[TestClient, None, None]:
 
     # Clean up singletons after test
     dependencies._neo4j_client = None
-    dependencies._cache = None
+    dependencies._memory_cache = None
     dependencies._recommender = None
 
 
