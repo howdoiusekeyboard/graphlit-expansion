@@ -2,6 +2,7 @@
 
 import { BookOpen, LayoutDashboard, Users, Zap } from 'lucide-react';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import { SearchBar } from '@/components/search/SearchBar';
 import { Button } from '@/components/ui/button';
 
@@ -18,7 +19,9 @@ export function Navbar() {
         </Link>
 
         <div className="flex-1 flex justify-center max-w-xl mx-auto">
-          <SearchBar />
+          <Suspense>
+            <SearchBar />
+          </Suspense>
         </div>
 
         <div className="flex items-center gap-2">

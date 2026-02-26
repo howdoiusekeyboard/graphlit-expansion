@@ -59,11 +59,13 @@ async def async_main() -> int:
         Exit code (0 for success, non-zero for error).
     """
     # Display banner
-    console.print(Panel.fit(
-        "[bold cyan]GraphLit Data Expansion Pipeline[/bold cyan]\n"
-        "[dim]Academic citation network expansion using OpenAlex & Neo4j[/dim]",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel.fit(
+            "[bold cyan]GraphLit Data Expansion Pipeline[/bold cyan]\n"
+            "[dim]Academic citation network expansion using OpenAlex & Neo4j[/dim]",
+            border_style="cyan",
+        )
+    )
 
     # Load configuration
     try:
@@ -87,7 +89,7 @@ async def async_main() -> int:
 
     # Load seed DOIs
     seeds_path = Path("data/seeds.json")
-    if not seeds_path.exists():
+    if not seeds_path.exists():  # noqa: ASYNC240 — startup check, trivial I/O
         console.print(f"\n[red]Error:[/red] Seeds file not found: {seeds_path}")
         console.print("Create a seeds.json file with your seed paper DOIs.")
         return 1
@@ -149,6 +151,7 @@ async def async_main() -> int:
     except Exception as e:
         console.print(f"\n[red]Unexpected error:[/red] {e}")
         import traceback
+
         if settings.debug:
             traceback.print_exc()
         return 1

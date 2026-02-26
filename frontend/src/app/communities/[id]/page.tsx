@@ -21,7 +21,7 @@ import { PaperGridSkeleton } from '@/components/paper/PaperCardSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useCommunityTrending, useCommunityAnalytics } from '@/lib/hooks/useCommunities';
+import { useCommunityAnalytics, useCommunityTrending } from '@/lib/hooks/useCommunities';
 
 export default function CommunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);

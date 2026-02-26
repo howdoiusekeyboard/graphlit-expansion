@@ -120,9 +120,7 @@ class CommunityDetector:
             # Filter small communities
             min_size = self.settings.min_community_size
             filtered_communities = {
-                cid: papers
-                for cid, papers in communities.items()
-                if len(papers) >= min_size
+                cid: papers for cid, papers in communities.items() if len(papers) >= min_size
             }
 
             logger.info(
@@ -299,9 +297,7 @@ class CommunityDetector:
                         "community_id": int(rec[0]),
                         "paper_count": int(rec[1]),
                         "avg_citations": float(rec[2]) if rec[2] else 0.0,
-                        "year_range": (
-                            (int(rec[4]), int(rec[3])) if rec[4] and rec[3] else (0, 0)
-                        ),
+                        "year_range": ((int(rec[4]), int(rec[3])) if rec[4] and rec[3] else (0, 0)),
                     }
                     for rec in records
                 ]
@@ -420,16 +416,16 @@ class CommunityDetector:
 
             # Write to file
             output_file = Path(output_path)
-            output_file.write_text("\n".join(lines), encoding="utf-8")
+            output_file.write_text("\n".join(lines), encoding="utf-8")  # noqa: ASYNC240
 
             logger.info(
                 "community_report_generated",
-                output_path=str(output_file.absolute()),
+                output_path=str(output_file.absolute()),  # noqa: ASYNC240
                 communities=len(communities),
                 bridging_papers=len(bridging),
             )
 
-            return str(output_file.absolute())
+            return str(output_file.absolute())  # noqa: ASYNC240
 
         except Exception as e:
             logger.error("report_generation_failed", error=str(e))

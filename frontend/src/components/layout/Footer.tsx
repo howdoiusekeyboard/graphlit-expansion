@@ -16,8 +16,8 @@ export function Footer() {
               </span>
             </Link>
             <p className="text-muted-foreground font-medium max-w-sm leading-relaxed">
-              Graph DBMS-powered citation intelligence platform for discovering thematic clusters and
-              predicting research impact through collaborative filtering.
+              Graph DBMS-powered citation intelligence platform for discovering thematic clusters
+              and predicting research impact through collaborative filtering.
             </p>
             <div className="flex gap-4">
               <Link

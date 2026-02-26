@@ -60,9 +60,7 @@ class ContentBasedRecommender:
         """
         self.client = client
 
-    async def get_paper_topics(
-        self, paper_id: str
-    ) -> list[tuple[str, float]]:
+    async def get_paper_topics(self, paper_id: str) -> list[tuple[str, float]]:
         """Fetch topic vector for a paper.
 
         Args:
@@ -183,8 +181,7 @@ class ContentBasedRecommender:
 
                 # Convert Neo4j map list to tuples
                 candidate_topics = [
-                    (str(t["topic_id"]), float(t["score"]))
-                    for t in candidate_topics_raw
+                    (str(t["topic_id"]), float(t["score"])) for t in candidate_topics_raw
                 ]
 
                 # Calculate topic affinity
@@ -195,9 +192,7 @@ class ContentBasedRecommender:
                     continue
 
                 # Build recommendation
-                impact_score = (
-                    float(record["impact_score"]) if record["impact_score"] else None
-                )
+                impact_score = float(record["impact_score"]) if record["impact_score"] else None
                 recommendations.append(
                     {
                         "paper_id": str(record["paper_id"]),
@@ -229,8 +224,7 @@ class ContentBasedRecommender:
                 paper_id=paper_id,
                 recommendations_count=len(recommendations),
                 avg_similarity=round(
-                    sum(r["similarity_score"] for r in recommendations)
-                    / len(recommendations),
+                    sum(r["similarity_score"] for r in recommendations) / len(recommendations),
                     4,
                 )
                 if recommendations

@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   getCommunities,
+  getCommunityAnalytics,
   getCommunityCitationNetwork,
   getCommunityTrending,
-  getCommunityAnalytics,
 } from '@/lib/api/communities';
 
 export function useCommunities() {
@@ -13,11 +13,7 @@ export function useCommunities() {
   });
 }
 
-export function useCommunityTrending(
-  communityId: number,
-  limit = 20,
-  minYear?: number | null,
-) {
+export function useCommunityTrending(communityId: number, limit = 20, minYear?: number | null) {
   return useQuery({
     queryKey: ['community-trending', communityId, limit, minYear],
     queryFn: () => getCommunityTrending(communityId, limit, minYear),

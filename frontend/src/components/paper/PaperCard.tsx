@@ -6,10 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useTrackPaperView } from '@/lib/hooks/useRecommendations';
 import { formatNumber } from '@/lib/utils/formatters';
-import type { RecommendationItem } from '@/lib/utils/validators';
+import type { RecommendationItem, TrendingPaperItem } from '@/lib/utils/validators';
 
 interface PaperCardProps {
-  paper: RecommendationItem;
+  paper: RecommendationItem | TrendingPaperItem;
   showSimilarity?: boolean;
 }
 
@@ -29,7 +29,7 @@ export function PaperCard({ paper, showSimilarity = false }: PaperCardProps) {
           </Badge>
           <div className="flex items-center gap-1 text-xs font-semibold text-orange-500">
             <TrendingUp className="h-3 w-3" />
-            <span>Impact: {paper.impact_score.toFixed(1)}</span>
+            <span>Impact: {(paper.impact_score ?? 0).toFixed(1)}</span>
           </div>
         </div>
         <CardTitle className="text-lg leading-tight group-hover:text-primary transition-colors line-clamp-2">
@@ -49,7 +49,7 @@ export function PaperCard({ paper, showSimilarity = false }: PaperCardProps) {
         </CardDescription>
       </CardHeader>
 
-      {showSimilarity && paper.similarity_score !== undefined && (
+      {showSimilarity && 'similarity_score' in paper && paper.similarity_score !== undefined && (
         <CardContent className="pt-0">
           <div className="space-y-3 pt-4 border-t border-muted-foreground/10">
             <div className="flex items-center justify-between text-xs">

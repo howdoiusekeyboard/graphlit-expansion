@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { Filter, LayoutGrid, Sparkles, TrendingUp } from 'lucide-react';
+import { useState } from 'react';
 import { CommunityCard } from '@/components/community/CommunityCard';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
@@ -15,7 +15,7 @@ export default function CommunitiesPage() {
 
   // Filter communities client-side
   const filteredCommunities = data?.communities.filter(
-    (community) => community.paper_count >= minPapers
+    (community) => community.paper_count >= minPapers,
   );
 
   return (

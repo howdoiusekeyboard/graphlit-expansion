@@ -198,8 +198,7 @@ class GraphAlgorithms:
         # Ensure graph exists
         if not await self.graph_exists():
             raise GDSError(
-                f"Graph '{self.graph_name}' does not exist. "
-                "Call project_citation_graph() first."
+                f"Graph '{self.graph_name}' does not exist. Call project_citation_graph() first."
             )
 
         # Run Louvain algorithm with write mode
@@ -289,8 +288,7 @@ class GraphAlgorithms:
         """
         if not await self.graph_exists():
             raise GDSError(
-                f"Graph '{self.graph_name}' does not exist. "
-                "Call project_citation_graph() first."
+                f"Graph '{self.graph_name}' does not exist. Call project_citation_graph() first."
             )
 
         query = """
@@ -382,8 +380,7 @@ class GraphAlgorithms:
         """
         if not await self.graph_exists():
             raise GDSError(
-                f"Graph '{self.graph_name}' does not exist. "
-                "Call project_citation_graph() first."
+                f"Graph '{self.graph_name}' does not exist. Call project_citation_graph() first."
             )
 
         query = """

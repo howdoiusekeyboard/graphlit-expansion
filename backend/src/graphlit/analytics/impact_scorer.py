@@ -395,9 +395,7 @@ class ImpactScorer:
             ImpactScoringError: If scores not calculated or paper not found.
         """
         if not self.scores:
-            raise ImpactScoringError(
-                "Scores not calculated. Call calculate_all_scores() first."
-            )
+            raise ImpactScoringError("Scores not calculated. Call calculate_all_scores() first.")
 
         if paper_id not in self.scores:
             raise ImpactScoringError(f"No scores found for paper: {paper_id}")
@@ -446,9 +444,7 @@ class ImpactScorer:
             ImpactScoringError: If scores not calculated.
         """
         if not self.scores:
-            raise ImpactScoringError(
-                "Scores not calculated. Call calculate_all_scores() first."
-            )
+            raise ImpactScoringError("Scores not calculated. Call calculate_all_scores() first.")
 
         logger.info("ranking_papers", limit=limit)
 
@@ -534,9 +530,7 @@ class ImpactScorer:
             ImpactScoringError: If scores not calculated or save fails.
         """
         if not self.scores:
-            raise ImpactScoringError(
-                "Scores not calculated. Call calculate_all_scores() first."
-            )
+            raise ImpactScoringError("Scores not calculated. Call calculate_all_scores() first.")
 
         logger.info("saving_scores_to_neo4j", total_papers=len(self.scores))
 

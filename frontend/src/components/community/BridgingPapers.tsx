@@ -1,8 +1,8 @@
 import { PaperCard } from '@/components/paper/PaperCard';
-import type { RecommendationItem } from '@/lib/utils/validators';
+import type { RecommendationItem, TrendingPaperItem } from '@/lib/utils/validators';
 
 interface BridgingPapersProps {
-  papers: RecommendationItem[];
+  papers: (RecommendationItem | TrendingPaperItem)[];
 }
 
 export function BridgingPapers({ papers }: BridgingPapersProps) {
