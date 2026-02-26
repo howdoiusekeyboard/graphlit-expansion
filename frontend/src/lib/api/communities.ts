@@ -1,13 +1,13 @@
+import { z } from 'zod';
+import type { CitationNetwork } from '@/lib/hooks/usePapers';
 import {
   type CommunitiesResponse,
   CommunitiesResponseSchema,
-  type TrendingPapersResponse,
-  TrendingPapersResponseSchema,
   type CommunityAnalyticsResponse,
   CommunityAnalyticsResponseSchema,
+  type TrendingPapersResponse,
+  TrendingPapersResponseSchema,
 } from '@/lib/utils/validators';
-import { type CitationNetwork } from '@/lib/hooks/usePapers';
-import { z } from 'zod';
 import { apiClient } from './client';
 
 const CitationNetworkResponseSchema = z.object({
@@ -63,10 +63,9 @@ export async function getCommunityCitationNetwork(
     params.min_year = minYear;
   }
 
-  const response = await apiClient.get(
-    `/api/v1/recommendations/community/${communityId}/network`,
-    { params },
-  );
+  const response = await apiClient.get(`/api/v1/recommendations/community/${communityId}/network`, {
+    params,
+  });
 
   return CitationNetworkResponseSchema.parse(response.data);
 }

@@ -104,9 +104,7 @@ class TestPersonalizedFeed:
     def test_feed_respects_limit_parameter(self, client: TestClient) -> None:
         """Test that limit parameter is respected."""
         for limit in [5, 10, 20]:
-            response = client.get(
-                f"/api/v1/recommendations/feed/limit_test_user?limit={limit}"
-            )
+            response = client.get(f"/api/v1/recommendations/feed/limit_test_user?limit={limit}")
 
             assert response.status_code == 200
             data = response.json()

@@ -58,9 +58,7 @@ class DatabaseStatsResponse(BaseModel):
     total_citations: int = Field(..., description="Total citation count across all papers")
     total_authors: int = Field(0, description="Total unique authors")
     total_topics: int = Field(0, description="Total unique topics")
-    papers_with_communities: int = Field(
-        0, description="Papers assigned to communities"
-    )
+    papers_with_communities: int = Field(0, description="Papers assigned to communities")
 
 
 # =============================================================================
@@ -248,9 +246,7 @@ class AnalyticsStatusResponse(BaseModel):
     pagerank_computed: bool = Field(..., description="Whether any PageRank scores exist")
     pagerank_papers: int = Field(..., description="Papers with PageRank computed")
     pagerank_null_count: int = Field(..., description="Papers missing PageRank")
-    impact_scores_computed: bool = Field(
-        ..., description="Whether any impact scores exist"
-    )
+    impact_scores_computed: bool = Field(..., description="Whether any impact scores exist")
     impact_score_papers: int = Field(..., description="Papers with impact scores")
     impact_score_null_count: int = Field(..., description="Papers missing impact scores")
 
@@ -292,9 +288,7 @@ async def get_analytics_status(
             record = await result.single()
 
             if not record:
-                raise HTTPException(
-                    status_code=500, detail="Failed to query analytics status"
-                )
+                raise HTTPException(status_code=500, detail="Failed to query analytics status")
 
             total = int(record["total"])
             pagerank_count = int(record["pagerank_count"])

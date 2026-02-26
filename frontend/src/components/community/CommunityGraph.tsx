@@ -32,7 +32,7 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
   const transformData = useCallback(() => {
     if (!data) return;
 
-    const newNodes: Node[] = data.papers.map((paper: any) => ({
+    const newNodes: Node[] = data.papers.map((paper) => ({
       id: paper.paper_id,
       type: 'default',
       data: {
@@ -49,13 +49,13 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
         justifyContent: 'center',
         textAlign: 'center',
         fontSize: '10px',
-        width: Math.max(60, paper.impact_score * 1.5),
-        height: Math.max(60, paper.impact_score * 1.5),
+        width: Math.max(60, (paper.impact_score ?? 0) * 1.5),
+        height: Math.max(60, (paper.impact_score ?? 0) * 1.5),
         border: 'none',
       },
     }));
 
-    const newEdges: Edge[] = data.citations.map((citation: any, idx: number) => ({
+    const newEdges: Edge[] = data.citations.map((citation, idx) => ({
       id: `e-${idx}`,
       source: citation.source,
       target: citation.target,

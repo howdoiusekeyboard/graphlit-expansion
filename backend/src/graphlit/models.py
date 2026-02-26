@@ -132,8 +132,7 @@ class Topic:
         # Topics can start with 'T' (new topics) or 'C' (legacy concepts)
         if not (self.openalex_id.startswith("T") or self.openalex_id.startswith("C")):
             raise ModelValidationError(
-                f"Invalid OpenAlex topic ID format: {self.openalex_id}. "
-                "Must start with 'T' or 'C'."
+                f"Invalid OpenAlex topic ID format: {self.openalex_id}. Must start with 'T' or 'C'."
             )
         if not self.name:
             raise ModelValidationError("name cannot be empty")
