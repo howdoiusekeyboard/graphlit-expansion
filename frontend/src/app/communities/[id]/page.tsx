@@ -3,6 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   ArrowLeft,
+  Filter,
   LayoutGrid,
   Network,
   PieChart as PieChartIcon,
@@ -20,16 +21,38 @@ import { PaperCard } from '@/components/paper/PaperCard';
 import { PaperGridSkeleton } from '@/components/paper/PaperCardSkeleton';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useCommunityTrending, useCommunityAnalytics } from '@/lib/hooks/useCommunities';
+import { useCommunityAnalytics, useCommunityTrending } from '@/lib/hooks/useCommunities';
 
 export default function CommunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const communityId = parseInt(id, 10);
   const [minYear, setMinYear] = useState<number | null>(null); // Default: All Time
+  const [displayLimit, setDisplayLimit] = useState<number>(20);
+  const [displayLimitInput, setDisplayLimitInput] = useState<string>('20');
 
-  const { data: trendingData, isLoading } = useCommunityTrending(communityId, 20, minYear);
+  const { data: trendingData, isLoading } = useCommunityTrending(
+    communityId,
+    displayLimit,
+    minYear,
+  );
   const { data: analyticsData, isLoading: isLoadingAnalytics } = useCommunityAnalytics(communityId);
+
+  const totalNodes = trendingData?.total ?? 0;
+
+  const commitDisplayLimit = (raw: string) => {
+    const sanitized = raw.replace(/\D/g, '');
+    if (sanitized === '') {
+      setDisplayLimitInput(String(displayLimit));
+      return;
+    }
+    const num = parseInt(sanitized, 10);
+    const max = totalNodes > 0 ? totalNodes : 50;
+    const next = Math.min(Math.max(num, 1), max);
+    setDisplayLimit(next);
+    setDisplayLimitInput(String(next));
+  };
 
   return (
     <div className="space-y-12 pb-20">
@@ -66,11 +89,9 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
 
           <div className="flex gap-4">
             <div className="p-6 rounded-[2rem] bg-card border text-center min-w-[140px] shadow-sm">
-              <div className="text-3xl font-black text-primary italic">
-                {trendingData?.total ?? 0}
-              </div>
+              <div className="text-3xl font-black text-primary italic">{totalNodes}</div>
               <div className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mt-1">
-                Cluster Nodes
+                Total Papers
               </div>
             </div>
           </div>
@@ -93,17 +114,48 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
         <TabsContent value="papers" className="space-y-12">
           {/* Trending Papers */}
           <section className="space-y-8">
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b pb-6">
-              <div className="space-y-1">
-                <h2 className="text-3xl font-black flex items-center gap-3 uppercase tracking-tighter italic">
-                  <TrendingUp className="text-primary h-8 w-8" />
-                  Cluster Momentum
-                </h2>
-                <p className="text-muted-foreground font-bold uppercase text-xs tracking-[0.1em]">
-                  High-centrality papers defining this thematic cluster
-                </p>
+            <div className="space-y-4 border-b pb-6">
+              <div className="flex flex-wrap items-center justify-between gap-4">
+                <div className="space-y-1">
+                  <h2 className="text-3xl font-black flex items-center gap-3 uppercase tracking-tighter italic">
+                    <TrendingUp className="text-primary h-8 w-8" />
+                    Cluster Momentum
+                  </h2>
+                  <p className="text-muted-foreground font-bold uppercase text-xs tracking-[0.1em]">
+                    Ranked by PageRank centrality, impact score, and citations
+                  </p>
+                </div>
+                <YearFilterToggle value={minYear} onChange={setMinYear} />
               </div>
-              <YearFilterToggle value={minYear} onChange={setMinYear} />
+
+              <div className="flex items-center gap-4 p-4 rounded-2xl border bg-card/50">
+                <Filter className="h-4 w-4 text-primary shrink-0" />
+                <label
+                  htmlFor="top-papers-filter"
+                  className="text-[10px] font-black uppercase tracking-widest text-muted-foreground whitespace-nowrap"
+                >
+                  Show Top
+                </label>
+                <Input
+                  id="top-papers-filter"
+                  type="text"
+                  inputMode="numeric"
+                  pattern="[0-9]*"
+                  value={displayLimitInput}
+                  onChange={(e) => setDisplayLimitInput(e.target.value.replace(/\D/g, ''))}
+                  onBlur={(e) => commitDisplayLimit(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      commitDisplayLimit((e.target as HTMLInputElement).value);
+                    }
+                  }}
+                  className="w-20 text-center font-black"
+                  aria-label="Number of top papers to display"
+                />
+                <span className="text-xs text-muted-foreground font-medium italic">
+                  of {totalNodes} papers
+                </span>
+              </div>
             </div>
 
             {isLoading ? (

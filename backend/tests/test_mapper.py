@@ -215,9 +215,7 @@ class TestShouldInclude:
             "id": "W123",
             "title": "Biology Paper",
             "publication_year": 2023,
-            "concepts": [
-                {"id": "https://openalex.org/C12345", "display_name": "Biology"}
-            ],
+            "concepts": [{"id": "https://openalex.org/C12345", "display_name": "Biology"}],
         }
         assert mapper_with_concepts.should_include(work) is False
 

@@ -162,9 +162,7 @@ class CommunityNetworkResponse(BaseModel):
 async def get_paper_recommendations(
     paper_id: str,
     limit: int = Query(10, ge=1, le=50, description="Maximum recommendations to return"),
-    min_similarity: float = Query(
-        0.3, ge=0.0, le=1.0, description="Minimum similarity threshold"
-    ),
+    min_similarity: float = Query(0.3, ge=0.0, le=1.0, description="Minimum similarity threshold"),
     recommender: CollaborativeFilterRecommender = Depends(get_recommender),
     cache: InMemoryCache = Depends(get_cache),
 ) -> RecommendationsResponse:
@@ -231,9 +229,7 @@ async def get_paper_recommendations(
         await cache.set_recommendations(cache_key, recommendations, ttl_seconds=3600)
 
         return RecommendationsResponse(
-            recommendations=[
-                RecommendationItem.model_validate(rec) for rec in recommendations
-            ],
+            recommendations=[RecommendationItem.model_validate(rec) for rec in recommendations],
             total=len(recommendations),
             cached=False,
             cache_ttl_seconds=None,
@@ -256,9 +252,7 @@ class QueryRequest(BaseModel):
     """Request body for query-based recommendations."""
 
     topics: list[str] = Field(..., description="Topic keywords to match")
-    exclude_papers: list[str] = Field(
-        default_factory=list, description="Paper IDs to exclude"
-    )
+    exclude_papers: list[str] = Field(default_factory=list, description="Paper IDs to exclude")
     year_min: int | None = Field(None, ge=1900, le=2100, description="Minimum year")
     year_max: int | None = Field(None, ge=1900, le=2100, description="Maximum year")
     limit: int = Field(10, ge=1, le=50, description="Maximum results")
@@ -290,18 +284,14 @@ async def query_recommendations(
     import hashlib
     import json
 
-    query_hash = hashlib.md5(
-        json.dumps(request.model_dump(), sort_keys=True).encode()
-    ).hexdigest()
+    query_hash = hashlib.md5(json.dumps(request.model_dump(), sort_keys=True).encode()).hexdigest()
     cache_key = f"recommendations:query:{query_hash}"
 
     # Try cache
     cached = await cache.get_recommendations(cache_key)
     if cached is not None:
         return RecommendationsResponse(
-            recommendations=[
-                RecommendationItem.model_validate(rec) for rec in cached
-            ],
+            recommendations=[RecommendationItem.model_validate(rec) for rec in cached],
             total=len(cached),
             cached=True,
             cache_ttl_seconds=3600,
@@ -326,7 +316,9 @@ async def query_recommendations(
                 "title": str(rec["title"]),
                 "year": int(rec["year"]) if rec["year"] else None,
                 "citations": int(rec["citations"]) if rec["citations"] else 0,
-                "impact_score": float(rec["impact_score"]) if rec["impact_score"] else None,
+                "impact_score": float(rec["impact_score"])
+                if rec["impact_score"] is not None
+                else None,
                 "similarity_score": (
                     float(rec["topic_match_count"]) / max(len(request.topics), 1)
                     if request.topics
@@ -335,19 +327,19 @@ async def query_recommendations(
                 "recommendation_reason": "topic_match" if request.topics else "high_impact",
                 "component_scores": {
                     "topic_match_count": float(rec["topic_match_count"]),
-                } if request.topics else None,
+                }
+                if request.topics
+                else None,
             }
             for rec in records
             if rec["paper_id"] not in request.exclude_papers
-        ][:request.limit]  # Trim to requested limit after exclusions
+        ][: request.limit]  # Trim to requested limit after exclusions
 
         # Cache result
         await cache.set_recommendations(cache_key, recommendations, ttl_seconds=3600)
 
         return RecommendationsResponse(
-            recommendations=[
-                RecommendationItem.model_validate(rec) for rec in recommendations
-            ],
+            recommendations=[RecommendationItem.model_validate(rec) for rec in recommendations],
             total=len(recommendations),
             cached=False,
             cache_ttl_seconds=None,
@@ -409,13 +401,12 @@ async def get_trending_papers(
     # Try cache (4 hour TTL for community data)
     cached = await cache.get_recommendations(cache_key)
     if cached is not None:
+        real_total = cached[0].get("_total", len(cached)) if cached else 0
         return TrendingPapersResponse(
             community_id=community_id,
             community_label=cached[0].get("community_label") if cached else None,
-            trending_papers=[
-                TrendingPaperItem.model_validate(p) for p in cached
-            ],
-            total=len(cached),
+            trending_papers=[TrendingPaperItem.model_validate(p) for p in cached],
+            total=real_total,
         )
 
     # Fetch trending papers
@@ -480,9 +471,9 @@ async def get_trending_papers(
                     "year": int(rec["year"]) if rec["year"] else None,
                     "citations": int(rec["citations"]) if rec["citations"] else 0,
                     "impact_score": float(rec["impact_score"])
-                    if rec["impact_score"]
+                    if rec["impact_score"] is not None
                     else None,
-                    "pagerank": float(rec["pagerank"]) if rec.get("pagerank") else None,
+                    "pagerank": float(rec["pagerank"]) if rec.get("pagerank") is not None else None,
                 }
                 for rec in records
             ]
@@ -490,19 +481,23 @@ async def get_trending_papers(
             # Get community label (fetch from first paper or use generic)
             community_label = f"Community {community_id}"
 
-            # Cache result (4 hours)
+            # Cache result (4 hours) — include real total for cache retrieval
+            # Use filtered count when year filter active, otherwise total
+            real_total = (
+                int(check_record["matching"])
+                if min_year is not None
+                else int(check_record["total"])
+            )
             cache_data = [
-                {**p, "community_label": community_label} for p in trending
+                {**p, "community_label": community_label, "_total": real_total} for p in trending
             ]
             await cache.set_recommendations(cache_key, cache_data, ttl_seconds=14400)
 
             return TrendingPapersResponse(
                 community_id=community_id,
                 community_label=community_label,
-                trending_papers=[
-                    TrendingPaperItem.model_validate(p) for p in trending
-                ],
-                total=len(trending),
+                trending_papers=[TrendingPaperItem.model_validate(p) for p in trending],
+                total=real_total,
             )
 
     except HTTPException:
@@ -578,10 +573,7 @@ async def get_community_analytics(
             check_record = await check_result.single()
 
             if not check_record or check_record["total"] == 0:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Community {community_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Community {community_id} not found")
 
             # Fetch analytics
             result = await session.run(
@@ -638,8 +630,7 @@ async def get_community_analytics(
     except Exception as e:
         logger.error("community_analytics_failed", community_id=community_id, error=str(e))
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to fetch community analytics: {str(e)}"
+            status_code=500, detail=f"Failed to fetch community analytics: {str(e)}"
         ) from e
 
 
@@ -695,10 +686,7 @@ async def get_community_network(
             check_record = await check_result.single()
 
             if not check_record or check_record["total"] == 0:
-                raise HTTPException(
-                    status_code=404,
-                    detail=f"Community {community_id} not found"
-                )
+                raise HTTPException(status_code=404, detail=f"Community {community_id} not found")
 
             # Phase 2: Fetch network data
             result = await session.run(
@@ -738,8 +726,7 @@ async def get_community_network(
     except Exception as e:
         logger.error("community_network_failed", community_id=community_id, error=str(e))
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to fetch community network: {str(e)}"
+            status_code=500, detail=f"Failed to fetch community network: {str(e)}"
         ) from e
 
 
@@ -857,7 +844,7 @@ async def get_personalized_feed(
                     "year": int(rec["year"]) if rec["year"] else None,
                     "citations": int(rec["citations"]) if rec["citations"] else 0,
                     "impact_score": (
-                        float(rec["impact_score"]) if rec["impact_score"] else None
+                        float(rec["impact_score"]) if rec["impact_score"] is not None else None
                     ),
                     "similarity_score": 1.0,
                     "recommendation_reason": "trending",
@@ -867,9 +854,7 @@ async def get_personalized_feed(
             ]
 
             response = RecommendationsResponse(
-                recommendations=[
-                    RecommendationItem.model_validate(rec) for rec in recommendations
-                ],
+                recommendations=[RecommendationItem.model_validate(rec) for rec in recommendations],
                 total=len(recommendations),
                 cached=False,
                 cache_ttl_seconds=None,
@@ -934,7 +919,7 @@ async def get_personalized_feed(
             candidate_scores.items(),
             key=lambda x: x[1],
             reverse=True,
-        )[:limit * 3]  # Over-fetch 3x for diversity filtering
+        )[: limit * 3]  # Over-fetch 3x for diversity filtering
 
         # Fallback: No recommendations found, return trending papers
         if not sorted_candidates:
@@ -973,7 +958,7 @@ async def get_personalized_feed(
             rec_id = str(record["paper_id"])
             aggregated_score = candidate_scores.get(rec_id, 0.0)
             impact_score = (
-                float(record["impact_score"]) if record["impact_score"] else None
+                float(record["impact_score"]) if record["impact_score"] is not None else None
             )
             community = int(record["community"]) if record["community"] is not None else None
 
@@ -986,17 +971,19 @@ async def get_personalized_feed(
             if community is not None and community not in viewed_communities:
                 final_score *= 1.15
 
-            scored_candidates.append({
-                "paper_id": rec_id,
-                "title": str(record["title"]),
-                "year": int(record["year"]) if record["year"] else None,
-                "citations": int(record["citations"]) if record["citations"] else 0,
-                "impact_score": impact_score,
-                "similarity_score": final_score,
-                "recommendation_reason": "personalized",
-                "component_scores": None,
-                "community": community,
-            })
+            scored_candidates.append(
+                {
+                    "paper_id": rec_id,
+                    "title": str(record["title"]),
+                    "year": int(record["year"]) if record["year"] else None,
+                    "citations": int(record["citations"]) if record["citations"] else 0,
+                    "impact_score": impact_score,
+                    "similarity_score": final_score,
+                    "recommendation_reason": "personalized",
+                    "component_scores": None,
+                    "community": community,
+                }
+            )
 
         # Apply diversity filtering to avoid year/community clustering
         recommendations_diverse: list[dict[str, object]] = []
@@ -1037,8 +1024,7 @@ async def get_personalized_feed(
 
         response = RecommendationsResponse(
             recommendations=[
-                RecommendationItem.model_validate(rec)
-                for rec in recommendations_diverse[:limit]
+                RecommendationItem.model_validate(rec) for rec in recommendations_diverse[:limit]
             ],
             total=len(recommendations_diverse[:limit]),
             cached=False,

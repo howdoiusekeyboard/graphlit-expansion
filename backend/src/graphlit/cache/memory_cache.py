@@ -168,9 +168,7 @@ class InMemoryCache:
             Dictionary with cache metrics
         """
         total_requests = self._hit_count + self._miss_count
-        hit_rate = (
-            self._hit_count / total_requests if total_requests > 0 else 0.0
-        )
+        hit_rate = self._hit_count / total_requests if total_requests > 0 else 0.0
 
         return {
             "size": len(self.cache),

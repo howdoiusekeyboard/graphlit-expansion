@@ -1,179 +1,289 @@
-# GraphLit Expansion System
+# GraphLit ResearchRadar — Backend
 
-Academic citation network expansion via OpenAlex API and Neo4j. BFS traversal from 15 seed DOIs to collect 1000+ papers with full metadata.
+Academic citation network expansion and recommendation API. BFS traversal from seed DOIs via OpenAlex API into Neo4j, with collaborative filtering, community detection, and impact scoring.
 
-## Architecture
+## Stack
 
-- **Python 3.14.2** - JIT compiler, no-GIL mode, enhanced REPL
-- Async I/O (httpx 0.28.1, neo4j-driver 6.0.3)
-- Rate-limited OpenAlex client (10 req/s)
-- Idempotent MERGE operations (resumable)
-- In-memory caching (cachetools 6.2.4, 100x faster than Redis)
-- Structured logging (structlog 24.4.0)
-- Type-safe configuration (pydantic 2.12)
-- Strict mypy 1.14.0 compliance
-- **FastAPI 0.127.0** - Production-ready REST API
+| Component | Version | Purpose |
+|-----------|---------|---------|
+| Python | 3.14.3 | JIT compiler, no-GIL mode, enhanced REPL |
+| FastAPI | 0.133.1 | REST API with strict Content-Type, OpenAPI docs |
+| Neo4j | 6.1.0 (driver) | Async graph database, MERGE-based idempotent inserts |
+| httpx | 0.28.1 | Async HTTP client for OpenAlex API |
+| cachetools | 7.0.1 | In-memory TTLCache (1h TTL, 1000 entries) |
+| Pydantic | 2.12.5 | Type-safe config + request/response models |
+| structlog | 25.5.0+ | Structured JSON logging |
+| aiolimiter | 1.2.1 | Async rate limiter (10 req/s for OpenAlex) |
+| ruff | 0.15.3 | Linting (E/F/I/N/UP/ASYNC rules) + 2026 formatter |
+| mypy | 1.19+ | Strict type checking (0 errors across 33 files) |
+| pytest | 9.0+ | 77 tests with pytest-asyncio + pytest-httpx |
+| uv | 0.10.6 | Package manager (10-100x faster than pip) |
 
 ## Requirements
 
-- **Python 3.14.0+** (recommended for JIT compiler)
-- **uv** (recommended package manager, 80x faster than pip)
-- Neo4j 5.x (database) or 6.x (driver compatible)
-- OpenAlex API access (email required for polite pool)
+- **Python 3.14+** — [python.org/downloads](https://www.python.org/downloads/)
+- **uv** — `curl -LsSf https://astral.sh/uv/install.sh | sh`
+- **Neo4j 5.x** — [Neo4j Desktop](https://neo4j.com/download/) or Docker
 
-## Setup (Modern 2025 Stack)
-
-### Option 1: With uv (Recommended - 10-100x faster)
+## Setup
 
 ```bash
-# Install uv package manager
-curl -LsSf https://astral.sh/uv/install.sh | sh
+cd backend
 
-# Clone repository
-git clone https://github.com/howdoiusekeyboard/graphlit-expansion.git
-cd graphlit-expansion/backend
+# Create virtual environment
+uv venv --python 3.14
+.venv\Scripts\activate          # Windows
+source .venv/bin/activate       # Unix
 
-# Create virtual environment with Python 3.14
-uv venv --python 3.14.2
-.venv\Scripts\activate  # Windows
-source .venv/bin/activate  # Unix
-
-# Install dependencies (lightning fast!)
+# Install all dependencies
 uv pip install -e ".[dev]"
+
+# Configure environment
+cp .env.example .env
+# Edit .env with your Neo4j credentials and OpenAlex email
 ```
 
-Edit `.env`:
+### Environment Variables
 
 ```ini
+# OpenAlex API
 OPENALEX__USER_AGENT=GraphLit/1.0 (mailto:your.email@edu)
+OPENALEX__RATE_LIMIT_PER_SECOND=10
+
+# Neo4j Database
 NEO4J__URI=bolt://localhost:7687
 NEO4J__USERNAME=neo4j
-NEO4J__PASSWORD=<password>
+NEO4J__PASSWORD=<your-password>
+NEO4J__DATABASE=neo4j
+
+# Pipeline
 EXPANSION__MAX_PAPERS=1000
 EXPANSION__MAX_DEPTH=2
+EXPANSION__YEAR_MIN=2015
+EXPANSION__YEAR_MAX=2025
 ```
 
 ## Neo4j Setup
 
-Download Neo4j Desktop from neo4j.com/download.
+1. Download [Neo4j Desktop](https://neo4j.com/download/)
+2. Create a local DBMS (version 5.x, bolt://localhost:7687)
+3. Start the database before running the pipeline or API
 
-Create local DBMS:
-- Version: 5.x
-- Database: neo4j
-- Bolt: bolt://localhost:7687
+Or via Docker:
 
-Start database before running pipeline.
+```bash
+docker run -p 7687:7687 -p 7474:7474 \
+  -e NEO4J_AUTH=neo4j/yourpassword \
+  neo4j:5-community
+```
 
 ## Usage
 
-```bash
-python -m graphlit
+### Recommended Execution Flow
+
+```text
+1. python -m graphlit                    # Expand papers from seeds (5-10 hours)
+2. python verify_graph.py                # Verify expansion success
+3. python run_community_detection.py     # Detect communities + compute impact scores
+4. python check_communities.py           # Verify communities were assigned
+5. uvicorn graphlit.api.main:app --host 0.0.0.0 --port 8080 --reload  # Start API
 ```
 
-Pipeline execution:
-1. Load seeds from `data/seeds.json`
-2. Resolve DOIs to OpenAlex IDs
-3. BFS expansion to MAX_DEPTH
-4. Create citation edges
-5. Output statistics
+### Step 1: Data Pipeline (BFS Expansion)
+
+```bash
+python -m graphlit              # Expand from seed DOIs → 1000+ papers
+DEBUG=1 python -m graphlit      # Verbose logging
+```
+
+Loads seed DOIs from `data/seeds.json`, resolves to OpenAlex IDs, BFS expands to configured depth, and creates citation edges. Pipeline is idempotent — interrupt and resume safely.
 
 Expected runtime: 5-10 hours for 1000 papers.
 
-## Verification
+### Step 2: Community Detection + Impact Scoring
 
 ```bash
-python quick_check.py      # Summary stats
-python verify_graph.py     # Graph validation
-python full_stats.py       # Detailed report
+python run_community_detection.py
 ```
 
-Neo4j Browser:
-```cypher
-MATCH (p:Paper) RETURN count(p)
+**This is a required step after expansion.** It runs the full analytics pipeline:
+
+1. **Louvain community detection** — clusters papers into thematic communities
+2. **PageRank centrality** — computes paper importance in the citation graph
+3. **Predictive Impact Scores** — 4-component composite score:
+   - PageRank Centrality (30%)
+   - Citation Velocity (25%)
+   - Author Reputation (25%)
+   - Topic Momentum (20%)
+4. Saves all scores and community assignments to Neo4j
+5. Displays community statistics and top papers
+
+Runtime: 2-5 minutes.
+
+### Step 3: Verification Scripts
+
+```bash
+python quick_check.py           # Quick DB connectivity + paper count
+python verify_graph.py          # Graph structure validation (papers, authors, venues, topics)
+python full_stats.py            # Detailed node/edge statistics report
+python check_communities.py     # Verify community assignments exist
 ```
 
-## Schema
+### Step 4: API Server
 
-Nodes:
-- `Paper`: openalex_id, doi, title, year, citations, abstract
-- `Author`: openalex_id, name, orcid, institution
-- `Venue`: openalex_id, name, type, publisher
-- `Topic`: openalex_id, name, level
+```bash
+uvicorn graphlit.api.main:app --host 0.0.0.0 --port 8080 --reload
+```
 
-Relationships:
+- Swagger UI: http://localhost:8080/docs
+- OpenAPI Schema: http://localhost:8080/openapi.json
+
+### API Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/v1/recommendations/paper/{id}` | Paper recommendations (collaborative filtering) |
+| GET | `/api/v1/recommendations/paper/{id}/detail` | Paper metadata |
+| GET | `/api/v1/recommendations/paper/{id}/network` | Citation network (1-hop) |
+| POST | `/api/v1/recommendations/query` | Query-based search (topics + year filters) |
+| GET | `/api/v1/recommendations/communities` | All communities list |
+| GET | `/api/v1/recommendations/community/{id}/trending` | Top papers in a community |
+| GET | `/api/v1/recommendations/feed/{session_id}` | Personalized feed |
+| POST | `/api/v1/recommendations/track/view` | Track paper views for personalization |
+| GET | `/api/v1/admin/cache/stats` | In-memory cache statistics |
+| POST | `/api/v1/admin/cache/clear` | Clear cache |
+| GET | `/health` | Health check |
+
+### Recommendation Engine
+
+The hybrid recommendation system combines 4 signals:
+
+| Signal | Weight | Method |
+|--------|--------|--------|
+| Citation overlap | 35% | Jaccard similarity on citation sets |
+| Topic affinity | 30% | Cosine similarity on topic vectors |
+| Author collaboration | 20% | Shared author network analysis |
+| Citation velocity | 15% | Growth rate similarity |
+
+### Personalized Feed Algorithm
+
+- **Time-decayed weighting**: 7-day half-life (`weight = base × 0.5^(days/7)`)
+- **Diversity filtering**: Max 3 papers/year, max 5 papers/community
+- **Impact boosting**: +10% for high-impact papers (score > 70)
+- **Community exploration**: +15% bonus for papers from unvisited communities
+- **Smart caching**: 2-min TTL for personalized feeds, 5-min for trending
+
+Cold start (no history) returns trending papers from diverse communities.
+
+## Graph Schema
+
+**Nodes**: `Paper`, `Author`, `Venue`, `Topic`, `UserProfile`
+
+**Relationships**:
 - `(Paper)-[:CITES]->(Paper)`
 - `(Paper)-[:AUTHORED_BY {position}]->(Author)`
 - `(Paper)-[:PUBLISHED_IN]->(Venue)`
 - `(Paper)-[:BELONGS_TO_TOPIC {score}]->(Topic)`
+- `(UserProfile)-[:VIEWED {timestamp, weight}]->(Paper)`
 
-Query examples:
+**Example queries**:
 
 ```cypher
-// Top cited
-MATCH (p:Paper)
-RETURN p.title, p.citations
-ORDER BY p.citations DESC LIMIT 10
+// Top cited papers
+MATCH (p:Paper) RETURN p.title, p.citations ORDER BY p.citations DESC LIMIT 10
 
-// By author
-MATCH (p:Paper)-[:AUTHORED_BY]->(a:Author {name: "Jie Zhou"})
-RETURN p.title, p.year
+// Papers by author
+MATCH (p:Paper)-[:AUTHORED_BY]->(a:Author {name: "Jie Zhou"}) RETURN p.title, p.year
 
-// Citation paths
+// Citation paths (up to 3 hops)
 MATCH path = (p1:Paper)-[:CITES*1..3]->(p2:Paper)
-WHERE p1.title CONTAINS "GNN"
-RETURN path LIMIT 10
+WHERE p1.title CONTAINS "GNN" RETURN path LIMIT 10
 ```
 
 ## Development
 
-Code quality:
+### Code Quality (all must pass with zero errors)
 
 ```bash
-mypy --strict src/          # Type checking
-ruff check src/ tests/      # Lint
-ruff format src/ tests/     # Format
+mypy --strict src/              # Type checking (33 files)
+ruff check src/ tests/          # Lint (E/F/I/N/UP/ASYNC rules)
+ruff format src/ tests/         # Auto-format (2026 style)
 ```
 
-Testing:
+### Testing
 
 ```bash
-pytest                                   # All tests
-pytest --cov=graphlit --cov-report=term  # Coverage
-pytest tests/test_mapper.py -v           # Specific
+pytest                                          # All 77 tests
+pytest --cov=graphlit --cov-report=term-missing # With coverage
+pytest tests/api/test_personalized_feed.py -v   # Feed tests (8 scenarios)
+pytest tests/test_mapper.py -v                  # Mapper tests
+```
+
+### Diagnostic Scripts
+
+```bash
+python check_community_513.py                       # Debug specific community issues
+python scripts/diagnose_missing_impact_scores.py    # Find papers missing impact scores
+```
+
+## Architecture
+
+```text
+src/graphlit/
+├── __main__.py                 # CLI entry: python -m graphlit
+├── config.py                   # Pydantic Settings (env_nested_delimiter="__")
+├── models.py                   # Frozen dataclasses: Paper, Author, Venue, Topic
+├── analytics/
+│   ├── community_detector.py   # Louvain community detection via Neo4j GDS
+│   └── impact_scorer.py        # Predictive impact score (4 components)
+├── api/
+│   ├── main.py                 # FastAPI app, CORS, lifespan
+│   ├── dependencies.py         # Singleton DI: Neo4j, cache, recommender
+│   └── routes/
+│       ├── admin.py            # Cache stats + invalidation
+│       └── recommendations.py  # 8 recommendation endpoints
+├── cache/
+│   └── memory_cache.py         # cachetools.TTLCache (1h TTL, 1000 entries)
+├── clients/
+│   └── openalex.py             # httpx.AsyncClient + aiolimiter (10 req/s)
+├── database/
+│   ├── neo4j_client.py         # AsyncGraphDatabase, MERGE-based inserts
+│   ├── queries.py              # Cypher query templates
+│   └── graph_algorithms.py     # PageRank, Louvain via Neo4j GDS
+├── pipeline/
+│   ├── mapper.py               # OpenAlex JSON → domain models
+│   └── orchestrator.py         # BFS expansion with Rich progress bars
+├── recommendations/
+│   ├── collaborative_filter.py # Hybrid 4-signal recommender
+│   ├── content_based.py        # Topic similarity recommender
+│   └── similarity.py           # Citation velocity + topic affinity
+└── utils/
+    ├── logging.py              # structlog configuration
+    └── retry.py                # Exponential backoff decorator
 ```
 
 ## Troubleshooting
 
-Neo4j connection errors:
-- Verify database status (Active)
-- Check .env password matches DBMS password
-- Try neo4j:// protocol instead of bolt://
+**Neo4j connection errors**:
+- Verify database is running (Active in Neo4j Desktop)
+- Check `.env` password matches DBMS password
+- Try `neo4j://` protocol instead of `bolt://`
 
-Rate limiting:
+**Rate limiting (429 errors)**:
 - Handled automatically with exponential backoff
-- If persistent, reduce OPENALEX__RATE_LIMIT_PER_SECOND to 8
+- If persistent, reduce `OPENALEX__RATE_LIMIT_PER_SECOND` to 8
 
-Missing seeds:
-- Some DOIs may not exist in OpenAlex
-- Check expansion_log.txt for failures
-- Pipeline continues with available seeds
+**Resume after interruption**:
+- Re-run `python -m graphlit` — existing papers loaded from Neo4j, only new papers fetched
 
-Resume after interruption:
-- Re-run `python -m graphlit`
-- Existing papers loaded from Neo4j
-- Only new papers fetched
+**Cache not updating**:
+- In-memory cache has 1-hour TTL. Clear manually: `POST /api/v1/admin/cache/clear`
 
-## Stack
+## Data Snapshot
 
-- httpx 0.27.0
-- neo4j 5.26.0
-- pydantic 2.9.2
-- pydantic-settings 2.5.2
-- structlog 24.4.0
-- rich 13.9.4
-- aiolimiter 1.2.1
-
-See architechture.md for design details.
+- **Papers**: 895 across 8 communities
+- **Pipeline last run**: 2025-12-17
+- **Top bridging papers**: AlphaFold 2, GPT-3, TensorFlow
 
 ## License
 

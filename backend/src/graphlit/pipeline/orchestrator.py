@@ -101,12 +101,14 @@ class ExpansionOrchestrator:
         """
         logger.info("expansion_started", seed_count=len(seed_dois))
 
-        self.console.print(Panel(
-            f"[bold]Starting expansion from {len(seed_dois)} seed papers[/bold]\n"
-            f"Target: {self.settings.max_papers} papers, max depth: {self.settings.max_depth}",
-            title="GraphLit Expansion",
-            border_style="cyan",
-        ))
+        self.console.print(
+            Panel(
+                f"[bold]Starting expansion from {len(seed_dois)} seed papers[/bold]\n"
+                f"Target: {self.settings.max_papers} papers, max depth: {self.settings.max_depth}",
+                title="GraphLit Expansion",
+                border_style="cyan",
+            )
+        )
 
         # Load existing papers from database (for resumability)
         existing_ids = await self.db.get_all_paper_ids()
@@ -126,21 +128,23 @@ class ExpansionOrchestrator:
         self.stats.queue_size = len(self._queue)
         graph_stats = await self.db.get_graph_stats()
 
-        self.console.print(Panel(
-            f"[green]Expansion complete![/green]\n\n"
-            f"Papers processed: {self.stats.processed}\n"
-            f"Papers skipped: {self.stats.skipped}\n"
-            f"Errors: {self.stats.errors}\n"
-            f"API calls: {self.stats.api_calls}\n\n"
-            f"[bold]Graph Statistics:[/bold]\n"
-            f"  Papers: {graph_stats['papers']}\n"
-            f"  Authors: {graph_stats['authors']}\n"
-            f"  Venues: {graph_stats['venues']}\n"
-            f"  Topics: {graph_stats['topics']}\n"
-            f"  Citations: {graph_stats['citations']}",
-            title="Expansion Complete",
-            border_style="green",
-        ))
+        self.console.print(
+            Panel(
+                f"[green]Expansion complete![/green]\n\n"
+                f"Papers processed: {self.stats.processed}\n"
+                f"Papers skipped: {self.stats.skipped}\n"
+                f"Errors: {self.stats.errors}\n"
+                f"API calls: {self.stats.api_calls}\n\n"
+                f"[bold]Graph Statistics:[/bold]\n"
+                f"  Papers: {graph_stats['papers']}\n"
+                f"  Authors: {graph_stats['authors']}\n"
+                f"  Venues: {graph_stats['venues']}\n"
+                f"  Topics: {graph_stats['topics']}\n"
+                f"  Citations: {graph_stats['citations']}",
+                title="Expansion Complete",
+                border_style="green",
+            )
+        )
 
         logger.info(
             "expansion_complete",
@@ -379,8 +383,7 @@ class ExpansionOrchestrator:
                     progress.update(task, advance=1)
 
                     # Log progress every 100 papers
-                    if (len(self._pending_citations) % 100 == 0 and
-                        len(self._pending_citations) > 0):
+                    if len(self._pending_citations) % 100 == 0 and len(self._pending_citations) > 0:
                         logger.info(
                             "references_fetch_progress",
                             processed=len(self._pending_citations),

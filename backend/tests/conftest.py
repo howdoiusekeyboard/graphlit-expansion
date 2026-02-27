@@ -33,9 +33,7 @@ def sample_work() -> dict[str, Any]:
                     "display_name": "Jie Zhou",
                     "orcid": "https://orcid.org/0000-0001-2345-6789",
                 },
-                "institutions": [
-                    {"display_name": "Tsinghua University"}
-                ],
+                "institutions": [{"display_name": "Tsinghua University"}],
                 "author_position": "first",
             },
             {

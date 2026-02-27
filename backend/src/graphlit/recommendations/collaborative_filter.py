@@ -80,10 +80,7 @@ class CollaborativeFilterRecommender:
 
         # Validate weights sum to 1.0
         total_weight = (
-            self.CITATION_WEIGHT
-            + self.TOPIC_WEIGHT
-            + self.AUTHOR_WEIGHT
-            + self.VELOCITY_WEIGHT
+            self.CITATION_WEIGHT + self.TOPIC_WEIGHT + self.AUTHOR_WEIGHT + self.VELOCITY_WEIGHT
         )
         if not (0.99 <= total_weight <= 1.01):
             raise ValueError(f"Similarity weights must sum to 1.0, got {total_weight:.4f}")
@@ -121,7 +118,7 @@ class CollaborativeFilterRecommender:
             candidates = {}
             for record in records:
                 impact_score = (
-                    float(record["impact_score"]) if record["impact_score"] else None
+                    float(record["impact_score"]) if record["impact_score"] is not None else None
                 )
                 candidates[str(record["paper_id"])] = {
                     "title": str(record["title"]),
@@ -194,13 +191,12 @@ class CollaborativeFilterRecommender:
             for record in records:
                 candidate_topics_raw = record["target_topics"]
                 candidate_topics = [
-                    (str(t["topic_id"]), float(t["score"]))
-                    for t in candidate_topics_raw
+                    (str(t["topic_id"]), float(t["score"])) for t in candidate_topics_raw
                 ]
 
                 affinity = topic_affinity_score(source_topics, candidate_topics)
                 impact_score = (
-                    float(record["impact_score"]) if record["impact_score"] else None
+                    float(record["impact_score"]) if record["impact_score"] is not None else None
                 )
 
                 candidates[str(record["paper_id"])] = {
@@ -263,7 +259,7 @@ class CollaborativeFilterRecommender:
                 shared_count = int(record["shared_author_count"])
                 similarity = min(shared_count / 3.0, 1.0)
                 impact_score = (
-                    float(record["impact_score"]) if record["impact_score"] else None
+                    float(record["impact_score"]) if record["impact_score"] is not None else None
                 )
 
                 candidates[str(record["paper_id"])] = {
@@ -332,7 +328,7 @@ class CollaborativeFilterRecommender:
                     velocity, velocity - velocity_diff, max_diff=10.0
                 )
                 impact_score = (
-                    float(record["impact_score"]) if record["impact_score"] else None
+                    float(record["impact_score"]) if record["impact_score"] is not None else None
                 )
 
                 candidates[str(record["paper_id"])] = {
