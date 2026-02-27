@@ -19,7 +19,11 @@ export function Navbar() {
         </Link>
 
         <div className="flex-1 flex justify-center max-w-xl mx-auto">
-          <Suspense>
+          <Suspense
+            fallback={
+              <div className="w-full max-w-2xl h-10 bg-muted/50 rounded-md animate-pulse" />
+            }
+          >
             <SearchBar />
           </Suspense>
         </div>

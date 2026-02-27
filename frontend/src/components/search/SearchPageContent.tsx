@@ -27,28 +27,12 @@ export function SearchPageContent() {
     // Build topics array from selected topics or search query from URL
     const searchTopics = topics.length > 0 ? topics : initialQuery ? [initialQuery] : [];
 
-    console.log('Triggering search with:', {
-      searchTopics,
+    search({
+      topics: searchTopics,
       year_min: yearRange[0],
       year_max: yearRange[1],
+      limit: 50,
     });
-
-    search(
-      {
-        topics: searchTopics,
-        year_min: yearRange[0],
-        year_max: yearRange[1],
-        limit: 50,
-      },
-      {
-        onSuccess: (data) => {
-          console.log('Search successful:', data);
-        },
-        onError: (err) => {
-          console.error('Search error:', err);
-        },
-      },
-    );
   }, [topics, yearRange, initialQuery, search]);
 
   const handleClearFilters = () => {

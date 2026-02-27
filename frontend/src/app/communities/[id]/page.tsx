@@ -30,6 +30,7 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
   const communityId = parseInt(id, 10);
   const [minYear, setMinYear] = useState<number | null>(null); // Default: All Time
   const [displayLimit, setDisplayLimit] = useState<number>(20);
+  const [displayLimitInput, setDisplayLimitInput] = useState<string>('20');
 
   const { data: trendingData, isLoading } = useCommunityTrending(
     communityId,
@@ -39,6 +40,16 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
   const { data: analyticsData, isLoading: isLoadingAnalytics } = useCommunityAnalytics(communityId);
 
   const totalNodes = trendingData?.total ?? 0;
+
+  const commitDisplayLimit = (raw: string) => {
+    const sanitized = raw.replace(/\D/g, '');
+    if (sanitized === '') return;
+    const num = parseInt(sanitized, 10);
+    const max = totalNodes > 0 ? totalNodes : 50;
+    const next = Math.min(Math.max(num, 1), max);
+    setDisplayLimit(next);
+    setDisplayLimitInput(String(next));
+  };
 
   return (
     <div className="space-y-12 pb-20">
@@ -127,13 +138,13 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
                   type="text"
                   inputMode="numeric"
                   pattern="[0-9]*"
-                  value={displayLimit}
-                  onChange={(e) => {
-                    const raw = e.target.value.replace(/\D/g, '');
-                    if (raw === '') return;
-                    const num = parseInt(raw, 10);
-                    const max = totalNodes > 0 ? totalNodes : 50;
-                    setDisplayLimit(Math.min(Math.max(num, 1), max));
+                  value={displayLimitInput}
+                  onChange={(e) => setDisplayLimitInput(e.target.value.replace(/\D/g, ''))}
+                  onBlur={(e) => commitDisplayLimit(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      commitDisplayLimit((e.target as HTMLInputElement).value);
+                    }
                   }}
                   className="w-20 text-center font-black"
                   aria-label="Number of top papers to display"

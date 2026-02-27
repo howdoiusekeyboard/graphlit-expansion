@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import type { CitationNetwork } from '@/lib/hooks/usePapers';
 import {
   type CommunitiesResponse,
   CommunitiesResponseSchema,
@@ -30,6 +29,8 @@ const CitationNetworkResponseSchema = z.object({
     }),
   ),
 });
+
+type CitationNetwork = z.infer<typeof CitationNetworkResponseSchema>;
 
 export async function getCommunities(): Promise<CommunitiesResponse> {
   const response = await apiClient.get('/api/v1/recommendations/communities');
