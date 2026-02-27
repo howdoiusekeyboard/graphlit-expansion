@@ -1,7 +1,7 @@
 'use client';
 
 import { AnimatePresence, motion } from 'framer-motion';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { PaperCard } from '@/components/paper/PaperCard';
 import { PaperGridSkeleton } from '@/components/paper/PaperCardSkeleton';
@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { useQueryRecommendations } from '@/lib/hooks/useRecommendations';
 
 export function SearchPageContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const initialQuery = searchParams.get('q') || '';
   const initialTopic = searchParams.get('topics') || '';
@@ -39,6 +40,7 @@ export function SearchPageContent() {
     setTopics([]);
     setYearRange([2015, 2025]);
     setMinImpact(0);
+    router.replace('/search');
   };
 
   return (
@@ -99,34 +101,43 @@ export function SearchPageContent() {
             </div>
           </div>
 
-          {isPending ? (
-            <PaperGridSkeleton count={9} />
-          ) : results?.recommendations && results.recommendations.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              <AnimatePresence mode="popLayout">
-                {results.recommendations
-                  .filter((p) => (p.impact_score || 0) >= minImpact)
-                  .map((paper, i) => (
-                    <motion.div
-                      key={paper.paper_id}
-                      layout
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.4, delay: i * 0.03 }}
-                    >
-                      <PaperCard paper={paper} />
-                    </motion.div>
-                  ))}
-              </AnimatePresence>
-            </div>
-          ) : (
-            <EmptyState
-              title="No Research Nodes Detected"
-              description="Adjust your temporal filters or topic keywords to broaden your discovery radius."
-              actionLabel="Reset Discovery"
-              onAction={handleClearFilters}
-            />
-          )}
+          {(() => {
+            const filtered =
+              results?.recommendations?.filter((p) => (p.impact_score || 0) >= minImpact) ?? [];
+
+            if (isPending) {
+              return <PaperGridSkeleton count={9} />;
+            }
+
+            if (filtered.length > 0) {
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  <AnimatePresence mode="popLayout">
+                    {filtered.map((paper, i) => (
+                      <motion.div
+                        key={paper.paper_id}
+                        layout
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.4, delay: i * 0.03 }}
+                      >
+                        <PaperCard paper={paper} />
+                      </motion.div>
+                    ))}
+                  </AnimatePresence>
+                </div>
+              );
+            }
+
+            return (
+              <EmptyState
+                title="No Research Nodes Detected"
+                description="Adjust your temporal filters or topic keywords to broaden your discovery radius."
+                actionLabel="Reset Discovery"
+                onAction={handleClearFilters}
+              />
+            );
+          })()}
         </main>
       </div>
     </div>

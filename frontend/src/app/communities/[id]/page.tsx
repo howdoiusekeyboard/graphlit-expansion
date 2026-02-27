@@ -43,7 +43,10 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
 
   const commitDisplayLimit = (raw: string) => {
     const sanitized = raw.replace(/\D/g, '');
-    if (sanitized === '') return;
+    if (sanitized === '') {
+      setDisplayLimitInput(String(displayLimit));
+      return;
+    }
     const num = parseInt(sanitized, 10);
     const max = totalNodes > 0 ? totalNodes : 50;
     const next = Math.min(Math.max(num, 1), max);

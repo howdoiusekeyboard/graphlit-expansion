@@ -189,13 +189,13 @@ Cold start (no history) returns trending papers from diverse communities.
 **Example queries**:
 
 ```cypher
--- Top cited papers
+// Top cited papers
 MATCH (p:Paper) RETURN p.title, p.citations ORDER BY p.citations DESC LIMIT 10
 
--- Papers by author
+// Papers by author
 MATCH (p:Paper)-[:AUTHORED_BY]->(a:Author {name: "Jie Zhou"}) RETURN p.title, p.year
 
--- Citation paths (up to 3 hops)
+// Citation paths (up to 3 hops)
 MATCH path = (p1:Paper)-[:CITES*1..3]->(p2:Paper)
 WHERE p1.title CONTAINS "GNN" RETURN path LIMIT 10
 ```
