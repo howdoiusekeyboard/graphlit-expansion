@@ -33,21 +33,36 @@ interface GraphLink {
   target: string;
 }
 
+/** Escape HTML special characters to prevent XSS in innerHTML tooltips. */
+const escapeHtml = (value: unknown): string =>
+  String(value).replace(/[&<>"']/g, (ch) => {
+    const map: Record<string, string> = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+    };
+    return map[ch] ?? ch;
+  });
+
 /** Resolve a CSS custom property to a hex color (#rrggbb) safe for Canvas alpha appending. */
 function resolveThemeHex(varName: string, fallback: string): string {
   if (typeof window === 'undefined') return fallback;
   const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
   if (!raw) return fallback;
 
-  // Normalize to a CSS color string the browser understands
-  const cssColor =
-    raw.startsWith('#') || raw.startsWith('rgb') || raw.startsWith('hsl') ? raw : `hsl(${raw})`;
+  // Detect any CSS color function (hsl, rgb, oklch, lab, lch, etc.)
+  const isColorFunction = /^[a-z]+\(/i.test(raw);
+  const cssColor = raw.startsWith('#') || isColorFunction ? raw : `hsl(${raw})`;
 
   // Use a throwaway canvas to convert any CSS color → #rrggbb hex
   const ctx = document.createElement('canvas').getContext('2d');
   if (!ctx) return fallback;
+  ctx.fillStyle = fallback; // set a known-good default first
   ctx.fillStyle = cssColor;
-  return ctx.fillStyle; // always returns #rrggbb
+  const normalized = ctx.fillStyle;
+  return /^#[0-9a-f]{6}$/i.test(normalized) ? normalized : fallback;
 }
 
 export function CommunityGraph({ communityId, minYear, className }: CommunityGraphProps) {
@@ -56,34 +71,44 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
 
   const [viewMode, setViewMode] = useState<'2d' | '3d'>('2d');
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 500 });
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
   const [primaryColor, setPrimaryColor] = useState('#e97316');
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const observerRef = useRef<ResizeObserver | null>(null);
   // biome-ignore lint/suspicious/noExplicitAny: react-force-graph ref types are not exported
   const graph2DRef = useRef<any>(null);
   // biome-ignore lint/suspicious/noExplicitAny: react-force-graph ref types are not exported
   const graph3DRef = useRef<any>(null);
+
+  const forcesConfigured = useRef(false);
 
   // Resolve theme color on mount
   useEffect(() => {
     setPrimaryColor(resolveThemeHex('--primary', '#e97316'));
   }, []);
 
-  // Track container dimensions via ResizeObserver (handles tab visibility)
-  useEffect(() => {
-    const el = containerRef.current;
+  // Ref callback — attaches ResizeObserver when container element mounts/unmounts
+  const setContainerRef = useCallback((el: HTMLDivElement | null) => {
+    if (observerRef.current) {
+      observerRef.current.disconnect();
+      observerRef.current = null;
+    }
+    containerRef.current = el;
     if (!el) return;
-    const observer = new ResizeObserver((entries) => {
+
+    const { width, height } = el.getBoundingClientRect();
+    if (width > 0 && height > 0) setDimensions({ width, height });
+
+    observerRef.current = new ResizeObserver((entries) => {
       const entry = entries[0];
       if (!entry) return;
-      const { width, height } = entry.contentRect;
-      if (width > 0 && height > 0) {
-        setDimensions({ width, height });
+      const rect = entry.contentRect;
+      if (rect.width > 0 && rect.height > 0) {
+        setDimensions({ width: rect.width, height: rect.height });
       }
     });
-    observer.observe(el);
-    return () => observer.disconnect();
+    observerRef.current.observe(el);
   }, []);
 
   // Transform API data → { nodes, links }
@@ -138,17 +163,6 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
     setHoveredNode(node?.id ?? null);
   }, []);
 
-  // Configure force physics when ref is available or data changes
-  // biome-ignore lint/correctness/useExhaustiveDependencies: graphData triggers force reconfiguration when new data arrives
-  useEffect(() => {
-    const ref = viewMode === '2d' ? graph2DRef : graph3DRef;
-    if (!ref.current) return;
-    ref.current.d3Force?.('charge')?.strength?.(-300);
-    ref.current.d3Force?.('link')?.distance?.(100);
-    // Re-heat the simulation so new forces take effect, then fit
-    ref.current.d3ReheatSimulation?.();
-  }, [viewMode, graphData]);
-
   // Zoom to fit once the engine settles (called by onEngineStop)
   const handleEngineStop = useCallback(() => {
     const ref = viewMode === '2d' ? graph2DRef : graph3DRef;
@@ -164,6 +178,26 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
     }, 300);
     return () => clearTimeout(timer);
   }, [dimensions.width, dimensions.height, viewMode, graphData.nodes.length]);
+
+  // Configure force physics when graph mounts — poll until ref is available
+  // biome-ignore lint/correctness/useExhaustiveDependencies: graphData.nodes.length reconfigures forces when new data arrives
+  useEffect(() => {
+    forcesConfigured.current = false;
+    let attempts = 0;
+    const interval = setInterval(() => {
+      const ref = viewMode === '2d' ? graph2DRef : graph3DRef;
+      if (ref.current && !forcesConfigured.current) {
+        ref.current.d3Force?.('charge')?.strength?.(-300);
+        ref.current.d3Force?.('link')?.distance?.(120);
+        ref.current.d3Force?.('center')?.strength?.(1);
+        ref.current.d3ReheatSimulation?.();
+        forcesConfigured.current = true;
+        clearInterval(interval);
+      }
+      if (++attempts > 20) clearInterval(interval);
+    }, 50);
+    return () => clearInterval(interval);
+  }, [viewMode, graphData.nodes.length]);
 
   // Custom 2D Canvas node painting — glow circles with labels
   const paintNode2D = useCallback(
@@ -284,19 +318,26 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
     ref.current?.zoomToFit?.(400, 60);
   };
 
-  // Tooltip HTML (used by both 2D and 3D)
+  // Tooltip HTML (used by both 2D and 3D) — all fields escaped to prevent XSS
   // biome-ignore lint/suspicious/noExplicitAny: node type from library
   const getNodeTooltip = useCallback((node: any) => {
+    const title = escapeHtml(node.title ?? 'Untitled');
+    const year = escapeHtml(node.year ?? 'N/A');
+    const citations = Number(node.citations ?? 0);
+    const impact = Number(node.impactScore ?? 0).toFixed(1);
     return `<div style="background:rgba(10,10,18,0.95);border:1px solid rgba(255,255,255,0.12);border-radius:10px;padding:10px 14px;font-family:'JetBrains Mono',monospace;max-width:300px;backdrop-filter:blur(8px)">
-			<div style="font-weight:900;font-size:12px;color:white;line-height:1.3">${node.title}</div>
-			<div style="color:rgba(255,255,255,0.5);font-size:10px;margin-top:6px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase">${node.year ?? 'N/A'} &middot; ${node.citations} citations &middot; Impact ${node.impactScore.toFixed(1)}</div>
+			<div style="font-weight:900;font-size:12px;color:white;line-height:1.3">${title}</div>
+			<div style="color:rgba(255,255,255,0.5);font-size:10px;margin-top:6px;font-weight:600;letter-spacing:0.05em;text-transform:uppercase">${year} &middot; ${citations} citations &middot; Impact ${impact}</div>
 		</div>`;
   }, []);
 
-  // Loading state
+  const frameClass = cn('h-[400px] md:h-[500px] lg:h-[700px] w-full rounded-2xl', className);
+
   if (isLoading) {
     return (
-      <div className="h-[400px] md:h-[500px] lg:h-[700px] flex items-center justify-center bg-secondary/20 rounded-2xl animate-pulse">
+      <div
+        className={cn(frameClass, 'flex items-center justify-center bg-secondary/20 animate-pulse')}
+      >
         <span className="text-muted-foreground font-bold uppercase text-xs tracking-widest">
           Mapping citation network...
         </span>
@@ -305,12 +346,16 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
   }
 
   if (error) {
-    return <Alert variant="destructive">Failed to load community graph</Alert>;
+    return (
+      <div className={cn(frameClass, 'flex items-center justify-center')}>
+        <Alert variant="destructive">Failed to load community graph</Alert>
+      </div>
+    );
   }
 
   if (graphData.nodes.length === 0) {
     return (
-      <div className="h-[400px] flex items-center justify-center bg-secondary/10 rounded-2xl border">
+      <div className={cn(frameClass, 'flex items-center justify-center bg-secondary/10 border')}>
         <span className="text-muted-foreground font-bold uppercase text-xs tracking-widest">
           No network data available
         </span>
@@ -335,14 +380,14 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
     onNodeHover: handleNodeHover,
     onEngineStop: handleEngineStop,
     backgroundColor: 'rgba(0,0,0,0)',
-    warmupTicks: 200,
-    cooldownTime: 3000,
+    warmupTicks: 0,
+    cooldownTime: 4000,
     d3VelocityDecay: 0.3,
   };
 
   return (
     <div
-      ref={containerRef}
+      ref={setContainerRef}
       className={cn(
         'relative h-[400px] md:h-[500px] lg:h-[700px] w-full border rounded-2xl bg-background/50 backdrop-blur-sm overflow-hidden',
         className,
@@ -374,6 +419,7 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
           variant="ghost"
           size="icon"
           onClick={handleZoomIn}
+          aria-label="Zoom in"
           className="h-7 w-7 text-foreground hover:text-primary hover:bg-primary/10"
         >
           <Plus className="h-3.5 w-3.5" />
@@ -382,6 +428,7 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
           variant="ghost"
           size="icon"
           onClick={handleZoomOut}
+          aria-label="Zoom out"
           className="h-7 w-7 text-foreground hover:text-primary hover:bg-primary/10"
         >
           <Minus className="h-3.5 w-3.5" />
@@ -391,6 +438,7 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
           variant="ghost"
           size="icon"
           onClick={handleFit}
+          aria-label="Fit to view"
           className="h-7 w-7 text-foreground hover:text-primary hover:bg-primary/10"
         >
           <Maximize2 className="h-3.5 w-3.5" />

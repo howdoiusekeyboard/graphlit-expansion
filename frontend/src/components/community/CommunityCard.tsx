@@ -9,7 +9,7 @@ import type { CommunityListItem } from '@/lib/utils/validators';
 
 export function CommunityCard({ community }: { community: CommunityListItem }) {
   return (
-    <Card className="group hover:shadow-2xl transition-all duration-500 bg-card/50 backdrop-blur-sm border-muted-foreground/10 hover:border-primary/50 flex flex-col h-full overflow-hidden rounded-[2.5rem]">
+    <Card className="group hover:shadow-2xl transition-all duration-500 bg-card/50 backdrop-blur-sm border-muted-foreground/10 hover:border-primary/50 flex flex-col h-full overflow-hidden rounded-[2.5rem] active:scale-[0.98]">
       <CardHeader className="pb-4">
         <div className="flex justify-between items-start mb-4">
           <Badge

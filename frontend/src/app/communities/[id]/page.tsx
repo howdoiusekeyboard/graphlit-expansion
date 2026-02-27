@@ -99,7 +99,7 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
       </header>
 
       <Tabs defaultValue="papers" className="w-full">
-        <TabsList className="bg-secondary/50 p-1 rounded-xl mb-8">
+        <TabsList className="w-full bg-secondary/50 p-1 rounded-xl mb-8">
           <TabsTrigger value="papers" className="rounded-lg font-bold uppercase text-xs">
             Trending Papers
           </TabsTrigger>

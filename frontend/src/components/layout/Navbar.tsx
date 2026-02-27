@@ -1,15 +1,31 @@
 'use client';
 
-import { BookOpen, LayoutDashboard, Users, Zap } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
+import { BookOpen, LayoutDashboard, Menu, Users, X, Zap } from 'lucide-react';
 import Link from 'next/link';
-import { Suspense } from 'react';
-import { SearchBar } from '@/components/search/SearchBar';
+import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 
+const navLinks = [
+  { href: '/communities', label: 'Communities', icon: Users },
+  { href: '/feed', label: 'My Feed', icon: LayoutDashboard },
+  { href: '/search', label: 'Browse', icon: BookOpen },
+] as const;
+
 export function Navbar() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Close mobile menu on route change
+  // biome-ignore lint/correctness/useExhaustiveDependencies: pathname triggers menu close on navigation
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container flex h-16 items-center gap-4">
+      <div className="container mx-auto px-4 flex h-16 items-center justify-between">
         <Link
           href="/"
           className="flex items-center gap-2 font-bold text-xl tracking-tight text-primary"
@@ -18,37 +34,52 @@ export function Navbar() {
           <span>GraphLit</span>
         </Link>
 
-        <div className="flex-1 flex justify-center max-w-xl mx-auto">
-          <Suspense
-            fallback={
-              <div className="w-full max-w-2xl h-10 bg-muted/50 rounded-md animate-pulse" />
-            }
-          >
-            <SearchBar />
-          </Suspense>
+        <div className="hidden md:flex items-center gap-2">
+          {navLinks.map((link) => (
+            <Button key={link.href} variant="ghost" asChild size="sm">
+              <Link href={link.href} className="flex items-center gap-2">
+                <link.icon className="h-4 w-4" />
+                <span>{link.label}</span>
+              </Link>
+            </Button>
+          ))}
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="ghost" asChild size="sm">
-            <Link href="/communities" className="flex items-center gap-2">
-              <Users className="h-4 w-4" />
-              <span>Communities</span>
-            </Link>
-          </Button>
-          <Button variant="ghost" asChild size="sm">
-            <Link href="/feed" className="flex items-center gap-2">
-              <LayoutDashboard className="h-4 w-4" />
-              <span>My Feed</span>
-            </Link>
-          </Button>
-          <Button variant="ghost" asChild size="sm">
-            <Link href="/search" className="flex items-center gap-2">
-              <BookOpen className="h-4 w-4" />
-              <span>Browse</span>
-            </Link>
-          </Button>
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="md:hidden ml-auto"
+          onClick={() => setMobileOpen((prev) => !prev)}
+          aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+        >
+          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </Button>
       </div>
+
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="md:hidden overflow-hidden border-t bg-background/95 backdrop-blur"
+          >
+            <div className="container py-4 space-y-4">
+              <div className="flex flex-col gap-1">
+                {navLinks.map((link) => (
+                  <Button key={link.href} variant="ghost" asChild className="justify-start">
+                    <Link href={link.href} className="flex items-center gap-2">
+                      <link.icon className="h-4 w-4" />
+                      <span>{link.label}</span>
+                    </Link>
+                  </Button>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </nav>
   );
 }

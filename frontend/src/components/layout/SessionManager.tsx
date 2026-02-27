@@ -19,7 +19,7 @@ export function SessionManager() {
   }
 
   return (
-    <div className="fixed top-2 right-2 z-[100] bg-black/80 text-[10px] text-white px-2 py-1 rounded font-mono border border-white/20 pointer-events-none">
+    <div className="fixed bottom-2 right-2 z-[100] bg-black/80 text-[10px] text-white px-2 py-1 rounded font-mono border border-white/20 pointer-events-none">
       SID: {sessionId}
     </div>
   );
