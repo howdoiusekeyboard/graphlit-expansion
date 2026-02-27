@@ -78,23 +78,57 @@ docker run -p 7687:7687 -p 7474:7474 \
 
 ## Usage
 
-### Data Pipeline (BFS Expansion)
+### Recommended Execution Flow
+
+```
+1. python -m graphlit                    # Expand papers from seeds (5-10 hours)
+2. python verify_graph.py                # Verify expansion success
+3. python run_community_detection.py     # Detect communities + compute impact scores
+4. python check_communities.py           # Verify communities were assigned
+5. uvicorn graphlit.api.main:app --host 0.0.0.0 --port 8080 --reload  # Start API
+```
+
+### Step 1: Data Pipeline (BFS Expansion)
 
 ```bash
 python -m graphlit              # Expand from seed DOIs → 1000+ papers
 DEBUG=1 python -m graphlit      # Verbose logging
 ```
 
-Pipeline steps:
-1. Load seed DOIs from `data/seeds.json`
-2. Resolve DOIs to OpenAlex IDs
-3. BFS expansion to configured depth
-4. Create citation edges (second pass)
-5. Run community detection + impact scoring
+Loads seed DOIs from `data/seeds.json`, resolves to OpenAlex IDs, BFS expands to configured depth, and creates citation edges. Pipeline is idempotent — interrupt and resume safely.
 
-Expected runtime: 5-10 hours for 1000 papers. Pipeline is idempotent — interrupt and resume safely.
+Expected runtime: 5-10 hours for 1000 papers.
 
-### API Server
+### Step 2: Community Detection + Impact Scoring
+
+```bash
+python run_community_detection.py
+```
+
+**This is a required step after expansion.** It runs the full analytics pipeline:
+
+1. **Louvain community detection** — clusters papers into thematic communities
+2. **PageRank centrality** — computes paper importance in the citation graph
+3. **Predictive Impact Scores** — 4-component composite score:
+   - PageRank Centrality (30%)
+   - Citation Velocity (25%)
+   - Author Reputation (25%)
+   - Topic Momentum (20%)
+4. Saves all scores and community assignments to Neo4j
+5. Displays community statistics and top papers
+
+Runtime: 2-5 minutes.
+
+### Step 3: Verification Scripts
+
+```bash
+python quick_check.py           # Quick DB connectivity + paper count
+python verify_graph.py          # Graph structure validation (papers, authors, venues, topics)
+python full_stats.py            # Detailed node/edge statistics report
+python check_communities.py     # Verify community assignments exist
+```
+
+### Step 4: API Server
 
 ```bash
 uvicorn graphlit.api.main:app --host 0.0.0.0 --port 8080 --reload
@@ -183,12 +217,11 @@ pytest tests/api/test_personalized_feed.py -v   # Feed tests (8 scenarios)
 pytest tests/test_mapper.py -v                  # Mapper tests
 ```
 
-### Graph Verification Scripts
+### Diagnostic Scripts
 
 ```bash
-python quick_check.py           # Summary statistics
-python verify_graph.py          # Graph structure validation
-python full_stats.py            # Detailed report
+python check_community_513.py                       # Debug specific community issues
+python scripts/diagnose_missing_impact_scores.py    # Find papers missing impact scores
 ```
 
 ## Architecture
