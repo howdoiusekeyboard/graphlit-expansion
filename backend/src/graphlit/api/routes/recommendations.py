@@ -399,11 +399,12 @@ async def get_trending_papers(
     # Try cache (4 hour TTL for community data)
     cached = await cache.get_recommendations(cache_key)
     if cached is not None:
+        real_total = cached[0].get("_total", len(cached)) if cached else 0
         return TrendingPapersResponse(
             community_id=community_id,
             community_label=cached[0].get("community_label") if cached else None,
             trending_papers=[TrendingPaperItem.model_validate(p) for p in cached],
-            total=len(cached),
+            total=real_total,
         )
 
     # Fetch trending papers
@@ -476,15 +477,19 @@ async def get_trending_papers(
             # Get community label (fetch from first paper or use generic)
             community_label = f"Community {community_id}"
 
-            # Cache result (4 hours)
-            cache_data = [{**p, "community_label": community_label} for p in trending]
+            # Cache result (4 hours) — include real total for cache retrieval
+            real_total = int(check_record["total"])
+            cache_data = [
+                {**p, "community_label": community_label, "_total": real_total}
+                for p in trending
+            ]
             await cache.set_recommendations(cache_key, cache_data, ttl_seconds=14400)
 
             return TrendingPapersResponse(
                 community_id=community_id,
                 community_label=community_label,
                 trending_papers=[TrendingPaperItem.model_validate(p) for p in trending],
-                total=len(trending),
+                total=int(check_record["total"]),
             )
 
     except HTTPException:
