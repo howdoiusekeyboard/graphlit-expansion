@@ -13,7 +13,6 @@ Interactive web application for academic paper discovery through citation intell
 | Tailwind CSS | 4.x | Utility-first styling |
 | shadcn/ui | Radix UI | Accessible component primitives |
 | TanStack Query | v5 | Async state management (5-min stale, 30-min GC) |
-| Zustand | v5 | Client state (minimal usage) |
 | @xyflow/react | 12.x | Interactive citation network graphs |
 | Recharts | 3.x | Charts (impact distribution, citation trends, topics) |
 | Framer Motion | 12.x | Page transitions and animations |
@@ -91,7 +90,7 @@ bun run format                  # Auto-format code
 
 ## Architecture
 
-```
+```text
 src/
 ├── app/                        # Next.js App Router pages
 │   ├── page.tsx                # Home

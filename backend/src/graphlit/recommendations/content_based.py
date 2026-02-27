@@ -192,7 +192,9 @@ class ContentBasedRecommender:
                     continue
 
                 # Build recommendation
-                impact_score = float(record["impact_score"]) if record["impact_score"] else None
+                impact_score = (
+                    float(record["impact_score"]) if record["impact_score"] is not None else None
+                )
                 recommendations.append(
                     {
                         "paper_id": str(record["paper_id"]),

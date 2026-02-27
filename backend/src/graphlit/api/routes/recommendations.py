@@ -316,7 +316,9 @@ async def query_recommendations(
                 "title": str(rec["title"]),
                 "year": int(rec["year"]) if rec["year"] else None,
                 "citations": int(rec["citations"]) if rec["citations"] else 0,
-                "impact_score": float(rec["impact_score"]) if rec["impact_score"] else None,
+                "impact_score": float(rec["impact_score"])
+                if rec["impact_score"] is not None
+                else None,
                 "similarity_score": (
                     float(rec["topic_match_count"]) / max(len(request.topics), 1)
                     if request.topics
@@ -468,8 +470,10 @@ async def get_trending_papers(
                     "title": str(rec["title"]),
                     "year": int(rec["year"]) if rec["year"] else None,
                     "citations": int(rec["citations"]) if rec["citations"] else 0,
-                    "impact_score": float(rec["impact_score"]) if rec["impact_score"] else None,
-                    "pagerank": float(rec["pagerank"]) if rec.get("pagerank") else None,
+                    "impact_score": float(rec["impact_score"])
+                    if rec["impact_score"] is not None
+                    else None,
+                    "pagerank": float(rec["pagerank"]) if rec.get("pagerank") is not None else None,
                 }
                 for rec in records
             ]
@@ -478,10 +482,14 @@ async def get_trending_papers(
             community_label = f"Community {community_id}"
 
             # Cache result (4 hours) — include real total for cache retrieval
-            real_total = int(check_record["total"])
+            # Use filtered count when year filter active, otherwise total
+            real_total = (
+                int(check_record["matching"])
+                if min_year is not None
+                else int(check_record["total"])
+            )
             cache_data = [
-                {**p, "community_label": community_label, "_total": real_total}
-                for p in trending
+                {**p, "community_label": community_label, "_total": real_total} for p in trending
             ]
             await cache.set_recommendations(cache_key, cache_data, ttl_seconds=14400)
 
@@ -489,7 +497,7 @@ async def get_trending_papers(
                 community_id=community_id,
                 community_label=community_label,
                 trending_papers=[TrendingPaperItem.model_validate(p) for p in trending],
-                total=int(check_record["total"]),
+                total=real_total,
             )
 
     except HTTPException:
@@ -835,7 +843,9 @@ async def get_personalized_feed(
                     "title": str(rec["title"]),
                     "year": int(rec["year"]) if rec["year"] else None,
                     "citations": int(rec["citations"]) if rec["citations"] else 0,
-                    "impact_score": (float(rec["impact_score"]) if rec["impact_score"] else None),
+                    "impact_score": (
+                        float(rec["impact_score"]) if rec["impact_score"] is not None else None
+                    ),
                     "similarity_score": 1.0,
                     "recommendation_reason": "trending",
                     "component_scores": None,
@@ -947,7 +957,9 @@ async def get_personalized_feed(
         for record in records:
             rec_id = str(record["paper_id"])
             aggregated_score = candidate_scores.get(rec_id, 0.0)
-            impact_score = float(record["impact_score"]) if record["impact_score"] else None
+            impact_score = (
+                float(record["impact_score"]) if record["impact_score"] is not None else None
+            )
             community = int(record["community"]) if record["community"] is not None else None
 
             # Boost score for high-impact papers (10% bonus)

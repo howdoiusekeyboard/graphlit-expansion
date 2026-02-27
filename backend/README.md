@@ -70,6 +70,7 @@ EXPANSION__YEAR_MAX=2025
 3. Start the database before running the pipeline or API
 
 Or via Docker:
+
 ```bash
 docker run -p 7687:7687 -p 7474:7474 \
   -e NEO4J_AUTH=neo4j/yourpassword \
@@ -80,7 +81,7 @@ docker run -p 7687:7687 -p 7474:7474 \
 
 ### Recommended Execution Flow
 
-```
+```text
 1. python -m graphlit                    # Expand papers from seeds (5-10 hours)
 2. python verify_graph.py                # Verify expansion success
 3. python run_community_detection.py     # Detect communities + compute impact scores
@@ -186,6 +187,7 @@ Cold start (no history) returns trending papers from diverse communities.
 - `(UserProfile)-[:VIEWED {timestamp, weight}]->(Paper)`
 
 **Example queries**:
+
 ```cypher
 -- Top cited papers
 MATCH (p:Paper) RETURN p.title, p.citations ORDER BY p.citations DESC LIMIT 10
@@ -226,7 +228,7 @@ python scripts/diagnose_missing_impact_scores.py    # Find papers missing impact
 
 ## Architecture
 
-```
+```text
 src/graphlit/
 ├── __main__.py                 # CLI entry: python -m graphlit
 ├── config.py                   # Pydantic Settings (env_nested_delimiter="__")
