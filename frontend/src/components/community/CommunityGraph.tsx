@@ -33,18 +33,18 @@ interface GraphLink {
   target: string;
 }
 
+/** HTML escape map for tooltips */
+const ESCAPE_MAP: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&#39;',
+};
+
 /** Escape HTML special characters to prevent XSS in innerHTML tooltips. */
 const escapeHtml = (value: unknown): string =>
-  String(value).replace(/[&<>"']/g, (ch) => {
-    const map: Record<string, string> = {
-      '&': '&amp;',
-      '<': '&lt;',
-      '>': '&gt;',
-      '"': '&quot;',
-      "'": '&#39;',
-    };
-    return map[ch] ?? ch;
-  });
+  String(value).replace(/[&<>"']/g, (ch) => ESCAPE_MAP[ch] ?? ch);
 
 /** Resolve a CSS custom property to a hex color (#rrggbb) safe for Canvas alpha appending. */
 function resolveThemeHex(varName: string, fallback: string): string {

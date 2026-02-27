@@ -51,6 +51,8 @@ export function Navbar() {
           className="md:hidden ml-auto"
           onClick={() => setMobileOpen((prev) => !prev)}
           aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+          aria-expanded={mobileOpen}
+          aria-controls="mobile-nav"
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </Button>
@@ -59,6 +61,9 @@ export function Navbar() {
       <AnimatePresence>
         {mobileOpen && (
           <motion.div
+            id="mobile-nav"
+            role="region"
+            aria-hidden={!mobileOpen}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
@@ -69,7 +74,11 @@ export function Navbar() {
               <div className="flex flex-col gap-1">
                 {navLinks.map((link) => (
                   <Button key={link.href} variant="ghost" asChild className="justify-start">
-                    <Link href={link.href} className="flex items-center gap-2">
+                    <Link
+                      href={link.href}
+                      className="flex items-center gap-2"
+                      onClick={() => setMobileOpen(false)}
+                    >
                       <link.icon className="h-4 w-4" />
                       <span>{link.label}</span>
                     </Link>
