@@ -461,9 +461,7 @@ class Neo4jClient:
                 async with self.session() as session:
                     await session.run(queries.BATCH_MERGE_AUTHORSHIPS, authorships=chunk)
             except Neo4jError as e:
-                logger.error(
-                    "create_authorships_batch_failed", chunk_size=len(chunk), error=str(e)
-                )
+                logger.error("create_authorships_batch_failed", chunk_size=len(chunk), error=str(e))
                 raise
 
     async def upsert_venues_batch(
@@ -534,9 +532,7 @@ class Neo4jClient:
                 async with self.session() as session:
                     await session.run(queries.BATCH_MERGE_CITATIONS, citations=chunk)
             except Neo4jError as e:
-                logger.error(
-                    "create_citations_batch_failed", chunk_size=len(chunk), error=str(e)
-                )
+                logger.error("create_citations_batch_failed", chunk_size=len(chunk), error=str(e))
                 raise
 
     # =========================================================================

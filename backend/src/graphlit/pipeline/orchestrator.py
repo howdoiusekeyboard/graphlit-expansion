@@ -190,9 +190,7 @@ class ExpansionOrchestrator:
                             title=work.get("title", "")[:50],
                         )
                     else:
-                        logger.debug(
-                            "seed_already_exists", doi=doi, openalex_id=openalex_id
-                        )
+                        logger.debug("seed_already_exists", doi=doi, openalex_id=openalex_id)
                 else:
                     logger.warning("seed_not_found", doi=doi)
                     self.stats.increment_skipped()
@@ -200,25 +198,6 @@ class ExpansionOrchestrator:
                 progress.update(task, advance=1)
 
         logger.info("seeds_resolved", queue_size=len(self._queue))
-
-    async def _fetch_paper(
-        self,
-        openalex_id: str,
-        sem: asyncio.Semaphore,
-    ) -> tuple[str, dict[str, Any] | None]:
-        """Fetch a single paper with semaphore-bounded concurrency.
-
-        Args:
-            openalex_id: OpenAlex work ID.
-            sem: Semaphore for concurrency control.
-
-        Returns:
-            Tuple of (openalex_id, work_data or None).
-        """
-        async with sem:
-            work = await self.api.get_work(openalex_id)
-            self.stats.increment_api_calls()
-            return (openalex_id, work)
 
     async def _run_bfs_expansion(self) -> None:
         """Execute BFS traversal with concurrent fetching and batch Neo4j writes."""
@@ -246,12 +225,11 @@ class ExpansionOrchestrator:
             progress.update(task, completed=len(self._visited))
 
             while self._queue and len(self._visited) < self.settings.max_papers:
-                # 1. Collect a massive wave of papers from the queue (e.g. 500)
+                # 1. Collect a wave of papers from the queue
                 wave: list[tuple[str, int]] = []
                 wave_ids: set[str] = set()
                 remaining = self.settings.max_papers - len(self._visited)
-                # Fetch up to 500 papers per wave to saturate 10 concurrent batch requests (50 each)
-                wave_size = min(500, remaining)
+                wave_size = min(50 * self.settings.concurrent_fetches, remaining)
 
                 while self._queue and len(wave) < wave_size:
                     oid, depth = self._queue.popleft()
@@ -262,26 +240,29 @@ class ExpansionOrchestrator:
                 if not wave:
                     break
 
-                # 2. Split the wave into chunks of 50 (OpenAlex API limit per batch)
+                # Build depth lookup so we don't rely on positional indexing
+                depth_by_id: dict[str, int] = {oid: d for oid, d in wave}
+
+                # 2. Split into chunks of 50 (OpenAlex batch limit)
                 chunks = [wave[i : i + 50] for i in range(0, len(wave), 50)]
-                
+
                 async def fetch_chunk(
                     chunk_wave: list[tuple[str, int]],
                 ) -> list[tuple[str, dict[str, Any] | None]]:
                     chunk_ids = [oid for oid, _ in chunk_wave]
                     async with sem:
                         works = await self.api.get_works_batch(chunk_ids)
-                        self.stats.api_calls += 1  # 1 API call per batch
-                        
+                        self.stats.increment_api_calls()
+
                     work_by_id = {self.mapper.extract_id(w["id"]): w for w in works}
                     return [(oid, work_by_id.get(oid)) for oid, _ in chunk_wave]
 
                 # Fetch all chunks concurrently
                 fetch_tasks = [fetch_chunk(chunk) for chunk in chunks]
                 chunk_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
-                
-                # Flatten the results
-                fetch_results = []
+
+                # Flatten results
+                fetch_results: list[tuple[str, dict[str, Any] | None]] = []
                 for res in chunk_results:
                     if isinstance(res, BaseException):
                         logger.error("chunk_fetch_error", error=str(res))
@@ -299,18 +280,8 @@ class ExpansionOrchestrator:
                 topic_assignments_batch: list[dict[str, Any]] = []
                 successful_ids: list[str] = []
 
-                for i, result in enumerate(fetch_results):
-                    if isinstance(result, BaseException):
-                        logger.error(
-                            "fetch_error",
-                            openalex_id=wave[i][0],
-                            error=str(result),
-                        )
-                        self.stats.increment_errors()
-                        continue
-
-                    oid, work = result
-                    depth = wave[i][1]
+                for oid, work in fetch_results:
+                    depth = depth_by_id[oid]
 
                     if not work:
                         self.stats.increment_skipped()
@@ -338,7 +309,9 @@ class ExpansionOrchestrator:
                         successful_ids.append(oid)
                     except Exception as e:
                         logger.error(
-                            "mapping_error", openalex_id=oid, error=str(e)
+                            "mapping_error",
+                            openalex_id=oid,
+                            error=str(e),
                         )
                         self.stats.increment_errors()
 
@@ -359,9 +332,7 @@ class ExpansionOrchestrator:
                     self.stats.increment_processed()
                 progress.update(task, completed=len(self._visited))
 
-                if self.stats.processed > 0 and self.stats.processed % 100 < len(
-                    successful_ids
-                ):
+                if self.stats.processed > 0 and self.stats.processed % 100 < len(successful_ids):
                     logger.info(
                         "expansion_progress",
                         processed=self.stats.processed,
@@ -405,52 +376,66 @@ class ExpansionOrchestrator:
             topic_assignments_batch: Accumulator for topic assignment dicts.
         """
         paper = self.mapper.map_paper(work)
-        papers_batch.append({
-            "openalex_id": paper.openalex_id,
-            "doi": paper.doi,
-            "title": paper.title,
-            "year": paper.year,
-            "citations": paper.citations,
-            "abstract": paper.abstract,
-        })
+        papers_batch.append(
+            {
+                "openalex_id": paper.openalex_id,
+                "doi": paper.doi,
+                "title": paper.title,
+                "year": paper.year,
+                "citations": paper.citations,
+                "abstract": paper.abstract,
+            }
+        )
 
         for author, position in self.mapper.map_authors(work):
-            authors_batch.append({
-                "openalex_id": author.openalex_id,
-                "name": author.name,
-                "orcid": author.orcid,
-                "institution": author.institution,
-            })
-            authorships_batch.append({
-                "paper_id": paper.openalex_id,
-                "author_id": author.openalex_id,
-                "position": position,
-            })
+            authors_batch.append(
+                {
+                    "openalex_id": author.openalex_id,
+                    "name": author.name,
+                    "orcid": author.orcid,
+                    "institution": author.institution,
+                }
+            )
+            authorships_batch.append(
+                {
+                    "paper_id": paper.openalex_id,
+                    "author_id": author.openalex_id,
+                    "position": position,
+                }
+            )
 
         venue = self.mapper.map_venue(work)
         if venue:
-            venues_batch.append({
-                "openalex_id": venue.openalex_id,
-                "name": venue.name,
-                "venue_type": venue.venue_type,
-                "publisher": venue.publisher,
-            })
-            publications_batch.append({
-                "paper_id": paper.openalex_id,
-                "venue_id": venue.openalex_id,
-            })
+            venues_batch.append(
+                {
+                    "openalex_id": venue.openalex_id,
+                    "name": venue.name,
+                    "venue_type": venue.venue_type,
+                    "publisher": venue.publisher,
+                }
+            )
+            publications_batch.append(
+                {
+                    "paper_id": paper.openalex_id,
+                    "venue_id": venue.openalex_id,
+                }
+            )
 
         for topic, score in self.mapper.map_topics(work):
-            topics_batch.append({
-                "openalex_id": topic.openalex_id,
-                "name": topic.name,
-                "level": topic.level,
-            })
-            topic_assignments_batch.append({
-                "paper_id": paper.openalex_id,
-                "topic_id": topic.openalex_id,
-                "score": score,
-            })
+            topics_batch.append(
+                {
+                    "openalex_id": topic.openalex_id,
+                    "name": topic.name,
+                    "level": topic.level,
+                }
+            )
+            topic_assignments_batch.append(
+                {
+                    "paper_id": paper.openalex_id,
+                    "topic_id": topic.openalex_id,
+                    "score": score,
+                }
+            )
 
         # Collect citation references for phase 3
         ref_ids = self.mapper.get_reference_ids(work, limit=100)
@@ -484,23 +469,25 @@ class ExpansionOrchestrator:
             topics: Topic node dicts.
             topic_assignments: Topic assignment relationship dicts.
         """
+        bs = self.settings.neo4j_batch_size
+
         # Write nodes first
         if papers:
-            await self.db.upsert_papers_batch(papers, batch_size=self.settings.neo4j_batch_size)
+            await self.db.upsert_papers_batch(papers, batch_size=bs)
         if authors:
-            await self.db.upsert_authors_batch(authors, batch_size=self.settings.neo4j_batch_size)
+            await self.db.upsert_authors_batch(authors, batch_size=bs)
         if venues:
-            await self.db.upsert_venues_batch(venues, batch_size=self.settings.neo4j_batch_size)
+            await self.db.upsert_venues_batch(venues, batch_size=bs)
         if topics:
-            await self.db.upsert_topics_batch(topics, batch_size=self.settings.neo4j_batch_size)
+            await self.db.upsert_topics_batch(topics, batch_size=bs)
 
         # Then relationships (need nodes to exist)
         if authorships:
-            await self.db.create_authorships_batch(authorships, batch_size=self.settings.neo4j_batch_size)
+            await self.db.create_authorships_batch(authorships, batch_size=bs)
         if publications:
-            await self.db.create_publications_batch(publications, batch_size=self.settings.neo4j_batch_size)
+            await self.db.create_publications_batch(publications, batch_size=bs)
         if topic_assignments:
-            await self.db.create_topic_assignments_batch(topic_assignments, batch_size=self.settings.neo4j_batch_size)
+            await self.db.create_topic_assignments_batch(topic_assignments, batch_size=bs)
 
     def _enqueue_neighbors(self, work: dict[str, Any], current_depth: int) -> None:
         """Add referenced works to the queue.
@@ -539,21 +526,24 @@ class ExpansionOrchestrator:
         for citing_id, ref_ids in self._pending_citations:
             for cited_id in ref_ids:
                 if cited_id in self._visited:
-                    citations_batch.append({
-                        "citing_id": citing_id,
-                        "cited_id": cited_id,
-                    })
+                    citations_batch.append(
+                        {
+                            "citing_id": citing_id,
+                            "cited_id": cited_id,
+                        }
+                    )
 
         if citations_batch:
             logger.info("creating_citation_edges", count=len(citations_batch))
-            await self.db.create_citations_batch(citations_batch)
+            await self.db.create_citations_batch(
+                citations_batch,
+                batch_size=self.settings.neo4j_batch_size,
+            )
             logger.info("citation_edges_created", count=len(citations_batch))
 
     async def _fetch_references_for_existing_papers(self) -> None:
         """Fetch references for existing papers concurrently (resume case)."""
-        logger.info(
-            "fetching_references_for_existing_papers", count=len(self._visited)
-        )
+        logger.info("fetching_references_for_existing_papers", count=len(self._visited))
 
         paper_ids = list(self._visited)
         sem = asyncio.Semaphore(self.settings.concurrent_fetches)
@@ -573,24 +563,29 @@ class ExpansionOrchestrator:
             # Process in massive concurrent waves of 500
             for i in range(0, len(paper_ids), 500):
                 wave_ids = paper_ids[i : i + 500]
-                
+
                 # Split into chunks of 50
                 chunks = [wave_ids[j : j + 50] for j in range(0, len(wave_ids), 50)]
-                
+
                 async def fetch_chunk(
                     chunk_ids: list[str],
                 ) -> list[tuple[str, dict[str, Any] | None]]:
                     async with sem:
                         works = await self.api.get_works_batch(chunk_ids)
-                        self.stats.api_calls += 1
+                        self.stats.increment_api_calls()
                     work_by_id = {self.mapper.extract_id(w["id"]): w for w in works}
                     return [(oid, work_by_id.get(oid)) for oid in chunk_ids]
-                
+
                 fetch_tasks = [fetch_chunk(chunk) for chunk in chunks]
                 chunk_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
 
                 for res in chunk_results:
                     if isinstance(res, BaseException):
+                        logger.error(
+                            "references_chunk_fetch_error",
+                            error=str(res),
+                        )
+                        self.stats.increment_errors()
                         continue
                     for pid, work in res:
                         if work:
