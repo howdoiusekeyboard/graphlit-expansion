@@ -96,13 +96,19 @@ def create_app() -> FastAPI:
     # CORS Middleware
     # ==========================================================================
 
-    # TODO: Restrict origins in production
+    allowed_origins = [
+        "https://graphlit.kushagragolash.tech",
+        "https://graphlit-expansion.vercel.app",
+        "http://localhost:3000",
+        "http://localhost:3001",
+    ]
+
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],  # Allow all origins (development only)
+        allow_origins=allowed_origins,
         allow_credentials=True,
-        allow_methods=["*"],  # Allow all HTTP methods
-        allow_headers=["*"],  # Allow all headers
+        allow_methods=["GET", "POST", "HEAD", "OPTIONS"],
+        allow_headers=["*"],
     )
 
     # ==========================================================================
