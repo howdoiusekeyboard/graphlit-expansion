@@ -116,7 +116,7 @@ def create_app() -> FastAPI:
     # Health Check Endpoint
     # ==========================================================================
 
-    @app.get("/health", tags=["health"])
+    @app.api_route("/health", methods=["GET", "HEAD"], tags=["health"])
     async def health_check() -> dict[str, str]:
         """Health check endpoint that verifies Neo4j connectivity.
 
@@ -140,7 +140,7 @@ def create_app() -> FastAPI:
         status = "healthy" if neo4j_status == "connected" else "degraded"
         return {"status": status, "service": "ResearchRadar API", "neo4j": neo4j_status}
 
-    @app.get("/", tags=["root"])
+    @app.api_route("/", methods=["GET", "HEAD"], tags=["root"])
     async def root() -> dict[str, str]:
         """Root endpoint with API information.
 
