@@ -99,6 +99,7 @@ def create_app() -> FastAPI:
     allowed_origins = [
         "https://graphlit.kushagragolash.tech",
         "https://graphlit-expansion.vercel.app",
+        "https://renewed-lydie-kushagragolash-17d213ef.koyeb.app",
         "http://localhost:3000",
         "http://localhost:3001",
     ]
