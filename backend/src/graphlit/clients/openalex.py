@@ -68,6 +68,7 @@ class OpenAlexClient:
             max_rate=settings.rate_limit_per_second,
             time_period=1.0,
         )
+        self._api_key = settings.api_key
         self._client = httpx.AsyncClient(
             timeout=httpx.Timeout(settings.timeout_seconds),
             headers={
@@ -113,7 +114,10 @@ class OpenAlexClient:
         """
         async with self.limiter:
             try:
-                response = await self._client.get(url)
+                params: dict[str, str] = {}
+                if self._api_key:
+                    params["api_key"] = self._api_key
+                response = await self._client.get(url, params=params)
                 response.raise_for_status()
                 return response.json()  # type: ignore[no-any-return]
 

@@ -184,6 +184,73 @@ MERGE (citing)-[:CITES]->(cited)
 """
 
 # =============================================================================
+# Batch Write Queries (UNWIND for bulk inserts)
+# =============================================================================
+
+BATCH_MERGE_PAPERS = """
+UNWIND $papers AS p
+MERGE (paper:Paper {openalex_id: p.openalex_id})
+SET paper.doi = p.doi,
+    paper.title = p.title,
+    paper.year = p.year,
+    paper.citations = p.citations,
+    paper.abstract = p.abstract
+"""
+
+BATCH_MERGE_AUTHORS = """
+UNWIND $authors AS a
+MERGE (author:Author {openalex_id: a.openalex_id})
+SET author.name = a.name,
+    author.orcid = a.orcid,
+    author.institution = a.institution
+"""
+
+BATCH_MERGE_AUTHORSHIPS = """
+UNWIND $authorships AS a
+MATCH (paper:Paper {openalex_id: a.paper_id})
+MATCH (author:Author {openalex_id: a.author_id})
+MERGE (paper)-[r:AUTHORED_BY]->(author)
+SET r.position = a.position
+"""
+
+BATCH_MERGE_VENUES = """
+UNWIND $venues AS v
+MERGE (venue:Venue {openalex_id: v.openalex_id})
+SET venue.name = v.name,
+    venue.type = v.venue_type,
+    venue.publisher = v.publisher
+"""
+
+BATCH_MERGE_PUBLICATIONS = """
+UNWIND $publications AS pub
+MATCH (paper:Paper {openalex_id: pub.paper_id})
+MATCH (venue:Venue {openalex_id: pub.venue_id})
+MERGE (paper)-[:PUBLISHED_IN]->(venue)
+"""
+
+BATCH_MERGE_TOPICS = """
+UNWIND $topics AS t
+MERGE (topic:Topic {openalex_id: t.openalex_id})
+SET topic.name = t.name,
+    topic.level = t.level
+"""
+
+BATCH_MERGE_TOPIC_ASSIGNMENTS = """
+UNWIND $assignments AS a
+MATCH (paper:Paper {openalex_id: a.paper_id})
+MATCH (topic:Topic {openalex_id: a.topic_id})
+MERGE (paper)-[r:BELONGS_TO_TOPIC]->(topic)
+SET r.score = a.score
+"""
+
+BATCH_MERGE_CITATIONS = """
+UNWIND $citations AS c
+MATCH (citing:Paper {openalex_id: c.citing_id})
+MATCH (cited:Paper {openalex_id: c.cited_id})
+MERGE (citing)-[:CITES]->(cited)
+"""
+
+# =============================================================================
 # Statistics Queries
 # =============================================================================
 

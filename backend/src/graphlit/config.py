@@ -21,16 +21,20 @@ class OpenAlexSettings(BaseSettings):
         default="https://api.openalex.org/",
         description="OpenAlex API base URL",
     )
+    api_key: str = Field(
+        default="",
+        description="OpenAlex API key (free, required since Feb 2026)",
+    )
     user_agent: str = Field(
-        default="GraphLit/1.0 (mailto:contact@example.com)",
-        description="User agent string with email for polite pool access",
+        default="GraphLit/1.0",
+        description="User agent string for HTTP client identification",
     )
     rate_limit_per_second: Annotated[int, Field(ge=1, le=100)] = Field(
-        default=10,
-        description="Maximum API requests per second",
+        default=80,
+        description="Maximum API requests per second (100 max with API key)",
     )
     timeout_seconds: Annotated[int, Field(ge=1, le=300)] = Field(
-        default=30,
+        default=15,
         description="HTTP request timeout in seconds",
     )
     max_retries: Annotated[int, Field(ge=0, le=10)] = Field(
@@ -86,6 +90,14 @@ class ExpansionSettings(BaseSettings):
     cs_concept_ids: list[str] = Field(
         default_factory=list,
         description="OpenAlex concept IDs for filtering (empty = all fields)",
+    )
+    concurrent_fetches: Annotated[int, Field(ge=1, le=200)] = Field(
+        default=50,
+        description="Maximum concurrent API fetches per BFS wave",
+    )
+    neo4j_batch_size: Annotated[int, Field(ge=1, le=2000)] = Field(
+        default=500,
+        description="Maximum items per Neo4j UNWIND batch write",
     )
 
 

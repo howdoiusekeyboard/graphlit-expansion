@@ -13,7 +13,7 @@ Academic citation network expansion and recommendation API. BFS traversal from s
 | cachetools | 7.0.1 | In-memory TTLCache (1h TTL, 1000 entries) |
 | Pydantic | 2.12.5 | Type-safe config + request/response models |
 | structlog | 25.5.0+ | Structured JSON logging |
-| aiolimiter | 1.2.1 | Async rate limiter (10 req/s for OpenAlex) |
+| aiolimiter | 1.2.1 | Async rate limiter (80 req/s with API key) |
 | ruff | 0.15.3 | Linting (E/F/I/N/UP/ASYNC rules) + 2026 formatter |
 | mypy | 1.19+ | Strict type checking (0 errors across 33 files) |
 | pytest | 9.0+ | 77 tests with pytest-asyncio + pytest-httpx |
@@ -40,15 +40,15 @@ uv pip install -e ".[dev]"
 
 # Configure environment
 cp .env.example .env
-# Edit .env with your Neo4j credentials and OpenAlex email
+# Edit .env with your Neo4j credentials and OpenAlex API key
 ```
 
 ### Environment Variables
 
 ```ini
-# OpenAlex API
-OPENALEX__USER_AGENT=GraphLit/1.0 (mailto:your.email@edu)
-OPENALEX__RATE_LIMIT_PER_SECOND=10
+# OpenAlex API (API key required since Feb 2026 — get free key at openalex.org/settings/api)
+OPENALEX__API_KEY=your_api_key_here
+OPENALEX__RATE_LIMIT_PER_SECOND=80
 
 # Neo4j Database
 NEO4J__URI=bolt://localhost:7687
@@ -61,6 +61,8 @@ EXPANSION__MAX_PAPERS=1000
 EXPANSION__MAX_DEPTH=2
 EXPANSION__YEAR_MIN=2015
 EXPANSION__YEAR_MAX=2025
+EXPANSION__CONCURRENT_FETCHES=50
+EXPANSION__NEO4J_BATCH_SIZE=500
 ```
 
 ## Neo4j Setup
@@ -82,7 +84,7 @@ docker run -p 7687:7687 -p 7474:7474 \
 ### Recommended Execution Flow
 
 ```text
-1. python -m graphlit                    # Expand papers from seeds (5-10 hours)
+1. python -m graphlit                    # Expand papers from seeds (~20-40 min for 1000)
 2. python verify_graph.py                # Verify expansion success
 3. python run_community_detection.py     # Detect communities + compute impact scores
 4. python check_communities.py           # Verify communities were assigned
@@ -98,7 +100,9 @@ DEBUG=1 python -m graphlit      # Verbose logging
 
 Loads seed DOIs from `data/seeds.json`, resolves to OpenAlex IDs, BFS expands to configured depth, and creates citation edges. Pipeline is idempotent — interrupt and resume safely.
 
-Expected runtime: 5-10 hours for 1000 papers.
+The pipeline uses concurrent API fetching (50 parallel requests per wave) and batch Neo4j writes (UNWIND queries) for high throughput. Singleton OpenAlex lookups (`/works/{id}`) are free and unlimited with an API key.
+
+Expected runtime: ~20-40 minutes for 1000 papers.
 
 ### Step 2: Community Detection + Impact Scoring
 
@@ -245,14 +249,14 @@ src/graphlit/
 ├── cache/
 │   └── memory_cache.py         # cachetools.TTLCache (1h TTL, 1000 entries)
 ├── clients/
-│   └── openalex.py             # httpx.AsyncClient + aiolimiter (10 req/s)
+│   └── openalex.py             # httpx.AsyncClient + aiolimiter (80 req/s)
 ├── database/
 │   ├── neo4j_client.py         # AsyncGraphDatabase, MERGE-based inserts
 │   ├── queries.py              # Cypher query templates
 │   └── graph_algorithms.py     # PageRank, Louvain via Neo4j GDS
 ├── pipeline/
 │   ├── mapper.py               # OpenAlex JSON → domain models
-│   └── orchestrator.py         # BFS expansion with Rich progress bars
+│   └── orchestrator.py         # Concurrent BFS expansion + batch Neo4j writes
 ├── recommendations/
 │   ├── collaborative_filter.py # Hybrid 4-signal recommender
 │   ├── content_based.py        # Topic similarity recommender
@@ -271,7 +275,8 @@ src/graphlit/
 
 **Rate limiting (429 errors)**:
 - Handled automatically with exponential backoff
-- If persistent, reduce `OPENALEX__RATE_LIMIT_PER_SECOND` to 8
+- If persistent, reduce `OPENALEX__RATE_LIMIT_PER_SECOND` (default 80, max 100)
+- Singleton lookups (`/works/{id}`) are free — only search endpoints consume credits
 
 **Resume after interruption**:
 - Re-run `python -m graphlit` — existing papers loaded from Neo4j, only new papers fetched

@@ -22,8 +22,9 @@ class TestOpenAlexSettings:
         settings = OpenAlexSettings()
 
         assert str(settings.base_url) == "https://api.openalex.org/"
-        assert settings.rate_limit_per_second == 10
-        assert settings.timeout_seconds == 30
+        assert settings.api_key == ""
+        assert settings.rate_limit_per_second == 80
+        assert settings.timeout_seconds == 15
         assert settings.max_retries == 3
 
     def test_custom_values(self) -> None:

@@ -20,6 +20,7 @@ from graphlit.models import Author, Paper, Topic, Venue
 
 if TYPE_CHECKING:
     from types import TracebackType
+    from typing import Any
 
     from neo4j import AsyncDriver, AsyncSession
 
@@ -419,6 +420,104 @@ class Neo4jClient:
                 error=str(e),
             )
             return False
+
+    # =========================================================================
+    # Batch Write Operations
+    # =========================================================================
+
+    _BATCH_SIZE = 500
+
+    async def upsert_papers_batch(self, papers: list[dict[str, Any]]) -> None:
+        """Batch upsert paper nodes using UNWIND."""
+        for i in range(0, len(papers), self._BATCH_SIZE):
+            chunk = papers[i : i + self._BATCH_SIZE]
+            try:
+                async with self.session() as session:
+                    await session.run(queries.BATCH_MERGE_PAPERS, papers=chunk)
+            except Neo4jError as e:
+                logger.error("upsert_papers_batch_failed", chunk_size=len(chunk), error=str(e))
+
+    async def upsert_authors_batch(self, authors: list[dict[str, Any]]) -> None:
+        """Batch upsert author nodes using UNWIND."""
+        for i in range(0, len(authors), self._BATCH_SIZE):
+            chunk = authors[i : i + self._BATCH_SIZE]
+            try:
+                async with self.session() as session:
+                    await session.run(queries.BATCH_MERGE_AUTHORS, authors=chunk)
+            except Neo4jError as e:
+                logger.error("upsert_authors_batch_failed", chunk_size=len(chunk), error=str(e))
+
+    async def create_authorships_batch(self, authorships: list[dict[str, Any]]) -> None:
+        """Batch create AUTHORED_BY relationships using UNWIND."""
+        for i in range(0, len(authorships), self._BATCH_SIZE):
+            chunk = authorships[i : i + self._BATCH_SIZE]
+            try:
+                async with self.session() as session:
+                    await session.run(queries.BATCH_MERGE_AUTHORSHIPS, authorships=chunk)
+            except Neo4jError as e:
+                logger.error(
+                    "create_authorships_batch_failed", chunk_size=len(chunk), error=str(e)
+                )
+
+    async def upsert_venues_batch(self, venues: list[dict[str, Any]]) -> None:
+        """Batch upsert venue nodes using UNWIND."""
+        for i in range(0, len(venues), self._BATCH_SIZE):
+            chunk = venues[i : i + self._BATCH_SIZE]
+            try:
+                async with self.session() as session:
+                    await session.run(queries.BATCH_MERGE_VENUES, venues=chunk)
+            except Neo4jError as e:
+                logger.error("upsert_venues_batch_failed", chunk_size=len(chunk), error=str(e))
+
+    async def create_publications_batch(self, publications: list[dict[str, Any]]) -> None:
+        """Batch create PUBLISHED_IN relationships using UNWIND."""
+        for i in range(0, len(publications), self._BATCH_SIZE):
+            chunk = publications[i : i + self._BATCH_SIZE]
+            try:
+                async with self.session() as session:
+                    await session.run(queries.BATCH_MERGE_PUBLICATIONS, publications=chunk)
+            except Neo4jError as e:
+                logger.error(
+                    "create_publications_batch_failed", chunk_size=len(chunk), error=str(e)
+                )
+
+    async def upsert_topics_batch(self, topics: list[dict[str, Any]]) -> None:
+        """Batch upsert topic nodes using UNWIND."""
+        for i in range(0, len(topics), self._BATCH_SIZE):
+            chunk = topics[i : i + self._BATCH_SIZE]
+            try:
+                async with self.session() as session:
+                    await session.run(queries.BATCH_MERGE_TOPICS, topics=chunk)
+            except Neo4jError as e:
+                logger.error("upsert_topics_batch_failed", chunk_size=len(chunk), error=str(e))
+
+    async def create_topic_assignments_batch(
+        self, assignments: list[dict[str, Any]]
+    ) -> None:
+        """Batch create BELONGS_TO_TOPIC relationships using UNWIND."""
+        for i in range(0, len(assignments), self._BATCH_SIZE):
+            chunk = assignments[i : i + self._BATCH_SIZE]
+            try:
+                async with self.session() as session:
+                    await session.run(queries.BATCH_MERGE_TOPIC_ASSIGNMENTS, assignments=chunk)
+            except Neo4jError as e:
+                logger.error(
+                    "create_topic_assignments_batch_failed",
+                    chunk_size=len(chunk),
+                    error=str(e),
+                )
+
+    async def create_citations_batch(self, citations: list[dict[str, Any]]) -> None:
+        """Batch create CITES relationships using UNWIND."""
+        for i in range(0, len(citations), self._BATCH_SIZE):
+            chunk = citations[i : i + self._BATCH_SIZE]
+            try:
+                async with self.session() as session:
+                    await session.run(queries.BATCH_MERGE_CITATIONS, citations=chunk)
+            except Neo4jError as e:
+                logger.error(
+                    "create_citations_batch_failed", chunk_size=len(chunk), error=str(e)
+                )
 
     # =========================================================================
     # Statistics
