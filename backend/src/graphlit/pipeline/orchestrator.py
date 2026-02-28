@@ -246,11 +246,12 @@ class ExpansionOrchestrator:
             progress.update(task, completed=len(self._visited))
 
             while self._queue and len(self._visited) < self.settings.max_papers:
-                # 1. Collect a wave of papers from the queue
+                # 1. Collect a massive wave of papers from the queue (e.g. 500)
                 wave: list[tuple[str, int]] = []
                 wave_ids: set[str] = set()
                 remaining = self.settings.max_papers - len(self._visited)
-                wave_size = min(self.settings.concurrent_fetches, remaining)
+                # Fetch up to 500 papers per wave to saturate 10 concurrent batch requests (50 each)
+                wave_size = min(500, remaining)
 
                 while self._queue and len(wave) < wave_size:
                     oid, depth = self._queue.popleft()
@@ -261,11 +262,32 @@ class ExpansionOrchestrator:
                 if not wave:
                     break
 
-                # 2. Fetch all papers in the wave concurrently
-                fetch_tasks = [self._fetch_paper(oid, sem) for oid, _ in wave]
-                fetch_results: list[tuple[str, dict[str, Any] | None] | BaseException] = (
-                    await asyncio.gather(*fetch_tasks, return_exceptions=True)
-                )
+                # 2. Split the wave into chunks of 50 (OpenAlex API limit per batch)
+                chunks = [wave[i : i + 50] for i in range(0, len(wave), 50)]
+                
+                async def fetch_chunk(
+                    chunk_wave: list[tuple[str, int]],
+                ) -> list[tuple[str, dict[str, Any] | None]]:
+                    chunk_ids = [oid for oid, _ in chunk_wave]
+                    async with sem:
+                        works = await self.api.get_works_batch(chunk_ids)
+                        self.stats.api_calls += 1  # 1 API call per batch
+                        
+                    work_by_id = {self.mapper.extract_id(w["id"]): w for w in works}
+                    return [(oid, work_by_id.get(oid)) for oid, _ in chunk_wave]
+
+                # Fetch all chunks concurrently
+                fetch_tasks = [fetch_chunk(chunk) for chunk in chunks]
+                chunk_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+                
+                # Flatten the results
+                fetch_results = []
+                for res in chunk_results:
+                    if isinstance(res, BaseException):
+                        logger.error("chunk_fetch_error", error=str(res))
+                        self.stats.increment_errors()
+                        continue
+                    fetch_results.extend(res)
 
                 # 3. Map results and collect batch data
                 papers_batch: list[dict[str, Any]] = []
@@ -292,10 +314,12 @@ class ExpansionOrchestrator:
 
                     if not work:
                         self.stats.increment_skipped()
+                        self._visited.add(oid)
                         continue
 
                     if not self.mapper.should_include(work):
                         self.stats.increment_skipped()
+                        self._visited.add(oid)
                         continue
 
                     try:
@@ -462,21 +486,21 @@ class ExpansionOrchestrator:
         """
         # Write nodes first
         if papers:
-            await self.db.upsert_papers_batch(papers)
+            await self.db.upsert_papers_batch(papers, batch_size=self.settings.neo4j_batch_size)
         if authors:
-            await self.db.upsert_authors_batch(authors)
+            await self.db.upsert_authors_batch(authors, batch_size=self.settings.neo4j_batch_size)
         if venues:
-            await self.db.upsert_venues_batch(venues)
+            await self.db.upsert_venues_batch(venues, batch_size=self.settings.neo4j_batch_size)
         if topics:
-            await self.db.upsert_topics_batch(topics)
+            await self.db.upsert_topics_batch(topics, batch_size=self.settings.neo4j_batch_size)
 
         # Then relationships (need nodes to exist)
         if authorships:
-            await self.db.create_authorships_batch(authorships)
+            await self.db.create_authorships_batch(authorships, batch_size=self.settings.neo4j_batch_size)
         if publications:
-            await self.db.create_publications_batch(publications)
+            await self.db.create_publications_batch(publications, batch_size=self.settings.neo4j_batch_size)
         if topic_assignments:
-            await self.db.create_topic_assignments_batch(topic_assignments)
+            await self.db.create_topic_assignments_batch(topic_assignments, batch_size=self.settings.neo4j_batch_size)
 
     def _enqueue_neighbors(self, work: dict[str, Any], current_depth: int) -> None:
         """Add referenced works to the queue.
@@ -546,29 +570,40 @@ class ExpansionOrchestrator:
                 total=len(paper_ids),
             )
 
-            # Process in concurrent waves
-            for i in range(0, len(paper_ids), self.settings.concurrent_fetches):
-                wave = paper_ids[i : i + self.settings.concurrent_fetches]
-                fetch_tasks = [self._fetch_paper(pid, sem) for pid in wave]
-                results: list[
-                    tuple[str, dict[str, Any] | None] | BaseException
-                ] = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+            # Process in massive concurrent waves of 500
+            for i in range(0, len(paper_ids), 500):
+                wave_ids = paper_ids[i : i + 500]
+                
+                # Split into chunks of 50
+                chunks = [wave_ids[j : j + 50] for j in range(0, len(wave_ids), 50)]
+                
+                async def fetch_chunk(
+                    chunk_ids: list[str],
+                ) -> list[tuple[str, dict[str, Any] | None]]:
+                    async with sem:
+                        works = await self.api.get_works_batch(chunk_ids)
+                        self.stats.api_calls += 1
+                    work_by_id = {self.mapper.extract_id(w["id"]): w for w in works}
+                    return [(oid, work_by_id.get(oid)) for oid in chunk_ids]
+                
+                fetch_tasks = [fetch_chunk(chunk) for chunk in chunks]
+                chunk_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
 
-                for result in results:
-                    if isinstance(result, BaseException):
+                for res in chunk_results:
+                    if isinstance(res, BaseException):
                         continue
-                    pid, work = result
-                    if work:
-                        ref_ids = self.mapper.get_reference_ids(work, limit=100)
-                        if ref_ids:
-                            self._pending_citations.append((pid, ref_ids))
+                    for pid, work in res:
+                        if work:
+                            ref_ids = self.mapper.get_reference_ids(work, limit=100)
+                            if ref_ids:
+                                self._pending_citations.append((pid, ref_ids))
 
-                progress.update(task, advance=len(wave))
+                progress.update(task, advance=len(wave_ids))
 
-                if (i // self.settings.concurrent_fetches) % 10 == 0 and i > 0:
+                if (i // 500) % 2 == 0 and i > 0:
                     logger.info(
                         "references_fetch_progress",
-                        fetched=i + len(wave),
+                        fetched=i + len(wave_ids),
                         total=len(paper_ids),
                         citations_found=len(self._pending_citations),
                     )

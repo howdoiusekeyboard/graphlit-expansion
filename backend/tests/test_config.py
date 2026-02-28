@@ -119,7 +119,7 @@ class TestSettings:
         """Test accessing nested settings."""
         settings = Settings()
 
-        assert settings.openalex.rate_limit_per_second == 10
+        assert settings.openalex.rate_limit_per_second == 80
         assert settings.neo4j.uri == "bolt://localhost:7687"
         assert settings.expansion.max_papers == 1000
 
