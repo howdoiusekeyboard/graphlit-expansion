@@ -47,10 +47,9 @@ async def main() -> None:
             return
 
         # Step 2: Detect communities
-        print(f"\n🔍 Running Louvain community detection...")
+        print(f"\n🔍 Running Louvain community detection (networkx)...")
         print(f"   Graph: {settings.analytics.gds_graph_name}")
-        print(f"   Max iterations: {settings.analytics.louvain_max_iterations}")
-        print(f"   Tolerance: {settings.analytics.louvain_tolerance}")
+        print(f"   Engine: networkx (AuraDB-compatible, no GDS required)")
 
         await detector.detect_communities()
         print(f"   ✅ Community detection complete!")

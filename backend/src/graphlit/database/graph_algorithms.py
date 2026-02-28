@@ -1,10 +1,14 @@
-"""Neo4j Graph Data Science (GDS) algorithm wrappers.
+"""Python-based graph algorithm implementations using networkx.
 
-This module provides async wrappers for GDS graph algorithms including:
-- Graph projection (creating in-memory graphs from Neo4j)
-- Community detection (Louvain)
-- Centrality metrics (PageRank, Betweenness)
-- Graph cleanup
+Replaces Neo4j GDS dependency with pure Python implementations,
+making the analytics pipeline compatible with Neo4j AuraDB Free (no GDS plugin).
+
+Algorithms:
+- Community detection (Louvain via networkx.community.louvain_communities)
+- Centrality metrics (PageRank, Betweenness via networkx)
+- Graph projection (Cypher fetch → networkx DiGraph)
+
+All results are written back to Neo4j as node properties via batched MERGE queries.
 
 Usage:
     >>> from graphlit.database.graph_algorithms import GraphAlgorithms
@@ -21,6 +25,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import networkx as nx
 import structlog
 from neo4j.exceptions import Neo4jError
 
@@ -30,18 +35,18 @@ if TYPE_CHECKING:
 
 logger = structlog.get_logger(__name__)
 
+_BATCH_SIZE = 500
+
 
 class GDSError(Exception):
-    """Raised when a GDS operation fails."""
-
-    pass
+    """Raised when a graph algorithm operation fails."""
 
 
 class GraphAlgorithms:
-    """Wrapper for Neo4j Graph Data Science operations.
+    """Graph algorithm wrapper using networkx (AuraDB-compatible).
 
-    Provides type-safe async methods for graph projections and algorithms.
-    Handles GDS-specific error cases and logging.
+    Fetches citation graph from Neo4j via Cypher, builds a networkx DiGraph
+    in memory, runs algorithms in Python, and writes results back to Neo4j.
 
     Attributes:
         client: Neo4jClient instance for database operations.
@@ -49,125 +54,85 @@ class GraphAlgorithms:
     """
 
     def __init__(self, client: Neo4jClient, settings: AnalyticsSettings) -> None:
-        """Initialize GraphAlgorithms wrapper.
-
-        Args:
-            client: Connected Neo4jClient instance.
-            settings: Analytics configuration settings.
-        """
         self.client = client
         self.settings = settings
         self.graph_name = settings.gds_graph_name
+        self._graph: nx.DiGraph | None = None
 
     # =========================================================================
-    # Graph Projection Operations
+    # Graph Projection (Cypher → networkx)
     # =========================================================================
 
     async def graph_exists(self) -> bool:
-        """Check if the GDS in-memory graph exists.
-
-        Returns:
-            True if graph projection exists in GDS catalog.
-        """
-        query = """
-        CALL gds.graph.exists($graphName)
-        YIELD exists
-        RETURN exists
-        """
-        try:
-            async with self.client.session() as session:
-                result = await session.run(query, graphName=self.graph_name)
-                record = await result.single()
-                return record is not None and record["exists"]
-        except Neo4jError as e:
-            logger.error("graph_exists_check_failed", error=str(e))
-            return False
+        """Check if the in-memory networkx graph has been built."""
+        return self._graph is not None and len(self._graph) > 0
 
     async def drop_graph_if_exists(self) -> bool:
-        """Drop the GDS in-memory graph if it exists.
-
-        Returns:
-            True if graph was dropped successfully or didn't exist.
-        """
-        if not await self.graph_exists():
-            logger.debug("graph_does_not_exist", graph_name=self.graph_name)
-            return True
-
-        query = """
-        CALL gds.graph.drop($graphName, false)
-        YIELD graphName
-        RETURN graphName
-        """
-        try:
-            async with self.client.session() as session:
-                result = await session.run(query, graphName=self.graph_name)
-                record = await result.single()
-                success = record is not None
-                if success:
-                    logger.info("graph_dropped", graph_name=self.graph_name)
-                return success
-        except Neo4jError as e:
-            logger.error("graph_drop_failed", error=str(e))
-            raise GDSError(f"Failed to drop graph: {e}") from e
+        """Clear the in-memory networkx graph."""
+        self._graph = None
+        logger.debug("graph_cleared", graph_name=self.graph_name)
+        return True
 
     async def project_citation_graph(self) -> dict[str, Any]:
-        """Project citation network into GDS in-memory graph.
+        """Build networkx DiGraph from Neo4j citation data.
 
-        Creates a native projection with:
-        - Nodes: All Paper nodes
-        - Relationships: CITES relationships (directed)
-        - Node properties: year, citations (for filtering/weighting)
+        Fetches all Paper nodes and CITES edges via Cypher, then constructs
+        an in-memory directed graph for algorithm execution.
 
         Returns:
-            Dictionary with projection statistics:
-            - nodeCount: Number of nodes projected
-            - relationshipCount: Number of relationships projected
-            - projectMillis: Time taken for projection
+            Dictionary with projection statistics (nodeCount, relationshipCount).
 
         Raises:
             GDSError: If projection fails.
         """
-        # Drop existing graph if present
         await self.drop_graph_if_exists()
 
-        query = """
-        CALL gds.graph.project(
-            $graphName,
-            'Paper',
-            'CITES',
-            {
-                nodeProperties: ['year', 'citations'],
-                relationshipProperties: []
-            }
-        )
-        YIELD graphName, nodeCount, relationshipCount, projectMillis
-        RETURN graphName, nodeCount, relationshipCount, projectMillis
+        paper_query = """
+        MATCH (p:Paper)
+        WHERE p.openalex_id IS NOT NULL
+        RETURN p.openalex_id AS id, p.year AS year, p.citations AS citations
+        """
+
+        edge_query = """
+        MATCH (a:Paper)-[:CITES]->(b:Paper)
+        WHERE a.openalex_id IS NOT NULL AND b.openalex_id IS NOT NULL
+        RETURN a.openalex_id AS source, b.openalex_id AS target
         """
 
         try:
+            graph: nx.DiGraph = nx.DiGraph()
+
             async with self.client.session() as session:
-                result = await session.run(query, graphName=self.graph_name)
-                record = await result.single()
+                result = await session.run(paper_query)
+                records = await result.values()
+                for rec in records:
+                    graph.add_node(str(rec[0]), year=rec[1], citations=rec[2] or 0)
 
-                if record is None:
-                    raise GDSError("Graph projection returned no results")
+            async with self.client.session() as session:
+                result = await session.run(edge_query)
+                records = await result.values()
+                for rec in records:
+                    src, tgt = str(rec[0]), str(rec[1])
+                    if src in graph and tgt in graph:
+                        graph.add_edge(src, tgt)
 
-                stats = {
-                    "graphName": record["graphName"],
-                    "nodeCount": record["nodeCount"],
-                    "relationshipCount": record["relationshipCount"],
-                    "projectMillis": record["projectMillis"],
-                }
+            self._graph = graph
 
-                logger.info(
-                    "graph_projected",
-                    graph_name=stats["graphName"],
-                    nodes=stats["nodeCount"],
-                    relationships=stats["relationshipCount"],
-                    duration_ms=stats["projectMillis"],
-                )
+            stats: dict[str, Any] = {
+                "graphName": self.graph_name,
+                "nodeCount": graph.number_of_nodes(),
+                "relationshipCount": graph.number_of_edges(),
+                "projectMillis": 0,
+            }
 
-                return stats
+            logger.info(
+                "graph_projected",
+                graph_name=stats["graphName"],
+                nodes=stats["nodeCount"],
+                relationships=stats["relationshipCount"],
+            )
+
+            return stats
 
         except Neo4jError as e:
             logger.error("graph_projection_failed", error=str(e))
@@ -178,264 +143,203 @@ class GraphAlgorithms:
     # =========================================================================
 
     async def detect_communities_louvain(self) -> dict[str, int]:
-        """Detect communities using Louvain algorithm.
+        """Detect communities using networkx Louvain algorithm.
 
-        Runs GDS Louvain algorithm on the projected citation graph and writes
-        results back to Neo4j as a 'community' property on Paper nodes.
+        Runs louvain_communities on the projected citation graph and writes
+        community assignments back to Neo4j as a 'community' property.
 
         Returns:
-            Dictionary mapping paper_id (OpenAlex ID) → community_id (int).
-            Community IDs are sequential integers starting from 0.
+            Dictionary mapping paper_id → community_id (int, 0-indexed).
 
         Raises:
-            GDSError: If Louvain algorithm fails or graph doesn't exist.
-
-        Example:
-            >>> communities = await gds.detect_communities_louvain()
-            >>> communities
-            {'W123': 0, 'W456': 0, 'W789': 1, ...}  # Papers W123, W456 in community 0
+            GDSError: If algorithm fails or graph doesn't exist.
         """
-        # Ensure graph exists
-        if not await self.graph_exists():
+        if self._graph is None or len(self._graph) == 0:
             raise GDSError(
                 f"Graph '{self.graph_name}' does not exist. Call project_citation_graph() first."
             )
 
-        # Run Louvain algorithm with write mode
-        query = """
-        CALL gds.louvain.write(
-            $graphName,
-            {
-                writeProperty: 'community',
-                maxIterations: $maxIterations,
-                tolerance: $tolerance,
-                includeIntermediateCommunities: false
-            }
-        )
-        YIELD communityCount, modularity, ranLevels, computeMillis, writeMillis
-        RETURN communityCount, modularity, ranLevels, computeMillis, writeMillis
-        """
-
         try:
-            async with self.client.session() as session:
-                result = await session.run(
-                    query,
-                    graphName=self.graph_name,
-                    maxIterations=self.settings.louvain_max_iterations,
-                    tolerance=self.settings.louvain_tolerance,
-                )
-                record = await result.single()
+            # networkx 3.6.1: louvain_communities works on DiGraph directly
+            communities_list: list[set[Any]] = nx.community.louvain_communities(
+                self._graph,
+                seed=42,
+                resolution=1.0,
+            )
 
-                if record is None:
-                    raise GDSError("Louvain algorithm returned no results")
+            # Build paper → community mapping
+            paper_to_community: dict[str, int] = {}
+            for community_id, members in enumerate(communities_list):
+                for node in members:
+                    paper_to_community[str(node)] = community_id
 
-                logger.info(
-                    "louvain_completed",
-                    communities=record["communityCount"],
-                    modularity=record["modularity"],
-                    levels=record["ranLevels"],
-                    compute_ms=record["computeMillis"],
-                    write_ms=record["writeMillis"],
-                )
+            # Batch write community assignments to Neo4j
+            write_query = """
+            UNWIND $assignments AS a
+            MATCH (p:Paper {openalex_id: a.paper_id})
+            SET p.community = a.community_id
+            """
+
+            assignments = [
+                {"paper_id": pid, "community_id": cid} for pid, cid in paper_to_community.items()
+            ]
+
+            for i in range(0, len(assignments), _BATCH_SIZE):
+                chunk = assignments[i : i + _BATCH_SIZE]
+                async with self.client.session() as session:
+                    await session.run(write_query, assignments=chunk)
+
+            logger.info(
+                "louvain_completed",
+                communities=len(communities_list),
+                total_papers=len(paper_to_community),
+            )
+
+            return paper_to_community
 
         except Neo4jError as e:
             logger.error("louvain_algorithm_failed", error=str(e))
             raise GDSError(f"Louvain algorithm failed: {e}") from e
-
-        # Fetch all paper → community mappings
-        fetch_query = """
-        MATCH (p:Paper)
-        WHERE p.community IS NOT NULL
-        RETURN p.openalex_id AS paper_id, p.community AS community_id
-        ORDER BY p.community, p.openalex_id
-        """
-
-        try:
-            async with self.client.session() as session:
-                result = await session.run(fetch_query)
-                records = await result.values()
-
-                communities = {str(rec[0]): int(rec[1]) for rec in records}
-
-                logger.info(
-                    "communities_fetched",
-                    total_papers=len(communities),
-                    unique_communities=len(set(communities.values())),
-                )
-
-                return communities
-
-        except Neo4jError as e:
-            logger.error("community_fetch_failed", error=str(e))
-            raise GDSError(f"Failed to fetch community assignments: {e}") from e
+        except Exception as e:
+            logger.error("louvain_algorithm_failed", error=str(e))
+            raise GDSError(f"Louvain algorithm failed: {e}") from e
 
     # =========================================================================
     # Centrality Metrics (PageRank)
     # =========================================================================
 
     async def calculate_pagerank(self) -> dict[str, float]:
-        """Calculate PageRank centrality for all papers.
+        """Calculate PageRank centrality using networkx.
 
-        Runs GDS PageRank algorithm and writes scores back to Neo4j as
-        'pagerank' property on Paper nodes.
+        Runs nx.pagerank on the projected graph, normalizes scores to 0-1,
+        and writes them back to Neo4j as 'pagerank' property on Paper nodes.
 
         Returns:
-            Dictionary mapping paper_id → pagerank_score (0.0 to 1.0).
-            Scores are normalized so the maximum score is 1.0.
+            Dictionary mapping paper_id → normalized_pagerank (0.0 to 1.0).
 
         Raises:
-            GDSError: If PageRank algorithm fails or graph doesn't exist.
+            GDSError: If algorithm fails or graph doesn't exist.
         """
-        if not await self.graph_exists():
+        if self._graph is None or len(self._graph) == 0:
             raise GDSError(
                 f"Graph '{self.graph_name}' does not exist. Call project_citation_graph() first."
             )
 
-        query = """
-        CALL gds.pageRank.write(
-            $graphName,
-            {
-                writeProperty: 'pagerank',
-                dampingFactor: $dampingFactor,
-                maxIterations: $maxIterations,
-                tolerance: 0.0001
-            }
-        )
-        YIELD ranIterations, didConverge, computeMillis, writeMillis
-        RETURN ranIterations, didConverge, computeMillis, writeMillis
-        """
-
         try:
-            async with self.client.session() as session:
-                result = await session.run(
-                    query,
-                    graphName=self.graph_name,
-                    dampingFactor=self.settings.pagerank_damping_factor,
-                    maxIterations=self.settings.pagerank_max_iterations,
-                )
-                record = await result.single()
+            # networkx 3.6.1: pagerank with configurable damping and iterations
+            raw_scores: dict[Any, float] = nx.pagerank(
+                self._graph,
+                alpha=self.settings.pagerank_damping_factor,
+                max_iter=self.settings.pagerank_max_iterations,
+                tol=0.0001,
+            )
 
-                if record is None:
-                    raise GDSError("PageRank algorithm returned no results")
+            # Normalize to 0-1 range
+            max_score = max(raw_scores.values()) if raw_scores else 1.0
+            if max_score > 0:
+                normalized = {
+                    str(node): float(score / max_score) for node, score in raw_scores.items()
+                }
+            else:
+                normalized = {str(node): 0.0 for node in raw_scores}
 
-                logger.info(
-                    "pagerank_completed",
-                    iterations=record["ranIterations"],
-                    converged=record["didConverge"],
-                    compute_ms=record["computeMillis"],
-                    write_ms=record["writeMillis"],
-                )
+            # Batch write pagerank scores to Neo4j
+            write_query = """
+            UNWIND $scores AS s
+            MATCH (p:Paper {openalex_id: s.paper_id})
+            SET p.pagerank = s.score
+            """
+
+            score_list = [{"paper_id": pid, "score": score} for pid, score in normalized.items()]
+
+            for i in range(0, len(score_list), _BATCH_SIZE):
+                chunk = score_list[i : i + _BATCH_SIZE]
+                async with self.client.session() as session:
+                    await session.run(write_query, scores=chunk)
+
+            logger.info(
+                "pagerank_completed",
+                papers_scored=len(normalized),
+                max_score=max(normalized.values()) if normalized else 0.0,
+                min_score=min(normalized.values()) if normalized else 0.0,
+            )
+
+            return normalized
 
         except Neo4jError as e:
             logger.error("pagerank_algorithm_failed", error=str(e))
             raise GDSError(f"PageRank algorithm failed: {e}") from e
-
-        # Fetch and normalize scores
-        fetch_query = """
-        MATCH (p:Paper)
-        WHERE p.pagerank IS NOT NULL
-        WITH max(p.pagerank) AS max_score
-        MATCH (p:Paper)
-        WHERE p.pagerank IS NOT NULL
-        RETURN p.openalex_id AS paper_id,
-               p.pagerank / max_score AS normalized_score
-        ORDER BY normalized_score DESC
-        """
-
-        try:
-            async with self.client.session() as session:
-                result = await session.run(fetch_query)
-                records = await result.values()
-
-                scores = {str(rec[0]): float(rec[1]) for rec in records}
-
-                logger.info(
-                    "pagerank_scores_fetched",
-                    total_papers=len(scores),
-                    max_score=max(scores.values()) if scores else 0.0,
-                    min_score=min(scores.values()) if scores else 0.0,
-                )
-
-                return scores
-
-        except Neo4jError as e:
-            logger.error("pagerank_fetch_failed", error=str(e))
-            raise GDSError(f"Failed to fetch PageRank scores: {e}") from e
+        except Exception as e:
+            logger.error("pagerank_algorithm_failed", error=str(e))
+            raise GDSError(f"PageRank algorithm failed: {e}") from e
 
     # =========================================================================
     # Betweenness Centrality (for Bridging Papers)
     # =========================================================================
 
     async def calculate_betweenness_centrality(self) -> dict[str, float]:
-        """Calculate betweenness centrality for finding bridging papers.
+        """Calculate betweenness centrality using networkx.
 
-        Betweenness centrality measures how often a node appears on shortest
-        paths between other nodes. High betweenness = bridging communities.
+        High betweenness = node sits on many shortest paths = bridges communities.
+        Uses sampling (k=500) for graphs with >500 nodes for performance.
 
         Returns:
-            Dictionary mapping paper_id → betweenness_score (normalized 0-1).
+            Dictionary mapping paper_id → normalized betweenness (0.0 to 1.0).
 
         Raises:
             GDSError: If algorithm fails or graph doesn't exist.
         """
-        if not await self.graph_exists():
+        if self._graph is None or len(self._graph) == 0:
             raise GDSError(
                 f"Graph '{self.graph_name}' does not exist. Call project_citation_graph() first."
             )
 
-        query = """
-        CALL gds.betweenness.write(
-            $graphName,
-            {
-                writeProperty: 'betweenness'
-            }
-        )
-        YIELD computeMillis, writeMillis
-        RETURN computeMillis, writeMillis
-        """
-
         try:
-            async with self.client.session() as session:
-                result = await session.run(query, graphName=self.graph_name)
-                record = await result.single()
+            n = self._graph.number_of_nodes()
+            # networkx 3.6.1: k-sampling for approximation on large graphs
+            # 3.6 has 50x faster Dijkstra which benefits this computation
+            sample_k = min(n, 500) if n > 500 else None
 
-                if record:
-                    logger.info(
-                        "betweenness_completed",
-                        compute_ms=record["computeMillis"],
-                        write_ms=record["writeMillis"],
-                    )
+            raw_scores: dict[Any, float] = nx.betweenness_centrality(
+                self._graph,
+                k=sample_k,
+                normalized=True,
+                seed=42,
+            )
+
+            # Normalize to 0-1 range (re-normalize after sampling)
+            max_score = max(raw_scores.values()) if raw_scores else 1.0
+            if max_score > 0:
+                normalized = {
+                    str(node): float(score / max_score) for node, score in raw_scores.items()
+                }
+            else:
+                normalized = {str(node): 0.0 for node in raw_scores}
+
+            # Batch write betweenness scores to Neo4j
+            write_query = """
+            UNWIND $scores AS s
+            MATCH (p:Paper {openalex_id: s.paper_id})
+            SET p.betweenness = s.score
+            """
+
+            score_list = [{"paper_id": pid, "score": score} for pid, score in normalized.items()]
+
+            for i in range(0, len(score_list), _BATCH_SIZE):
+                chunk = score_list[i : i + _BATCH_SIZE]
+                async with self.client.session() as session:
+                    await session.run(write_query, scores=chunk)
+
+            logger.info(
+                "betweenness_completed",
+                papers_scored=len(normalized),
+            )
+
+            return normalized
 
         except Neo4jError as e:
             logger.error("betweenness_algorithm_failed", error=str(e))
             raise GDSError(f"Betweenness algorithm failed: {e}") from e
-
-        # Fetch normalized scores
-        fetch_query = """
-        MATCH (p:Paper)
-        WHERE p.betweenness IS NOT NULL
-        WITH max(p.betweenness) AS max_score
-        MATCH (p:Paper)
-        WHERE p.betweenness IS NOT NULL
-        RETURN p.openalex_id AS paper_id,
-               CASE WHEN max_score > 0
-                    THEN p.betweenness / max_score
-                    ELSE 0.0
-               END AS normalized_score
-        ORDER BY normalized_score DESC
-        """
-
-        try:
-            async with self.client.session() as session:
-                result = await session.run(fetch_query)
-                records = await result.values()
-
-                scores = {str(rec[0]): float(rec[1]) for rec in records}
-
-                logger.info("betweenness_scores_fetched", total_papers=len(scores))
-
-                return scores
-
-        except Neo4jError as e:
-            logger.error("betweenness_fetch_failed", error=str(e))
-            raise GDSError(f"Failed to fetch betweenness scores: {e}") from e
+        except Exception as e:
+            logger.error("betweenness_algorithm_failed", error=str(e))
+            raise GDSError(f"Betweenness algorithm failed: {e}") from e

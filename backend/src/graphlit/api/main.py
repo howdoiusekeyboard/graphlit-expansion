@@ -24,7 +24,7 @@ from fastapi.middleware.cors import CORSMiddleware
 if TYPE_CHECKING:
     pass
 
-from graphlit.api.dependencies import shutdown_connections
+from graphlit.api.dependencies import get_neo4j_client, shutdown_connections
 from graphlit.api.routes import admin, recommendations
 
 logger = structlog.get_logger(__name__)
@@ -118,12 +118,26 @@ def create_app() -> FastAPI:
 
     @app.get("/health", tags=["health"])
     async def health_check() -> dict[str, str]:
-        """Health check endpoint.
+        """Health check endpoint that verifies Neo4j connectivity.
+
+        Pings Neo4j with a lightweight read query (RETURN 1) to keep
+        both Koyeb and AuraDB Free alive via external cron pings.
 
         Returns:
-            Simple health status.
+            Health status with Neo4j connectivity info.
         """
-        return {"status": "healthy", "service": "ResearchRadar API"}
+        neo4j_status = "unknown"
+        try:
+            client = await get_neo4j_client()
+            if await client.verify_connection():
+                neo4j_status = "connected"
+            else:
+                neo4j_status = "disconnected"
+        except Exception:
+            neo4j_status = "error"
+
+        status = "healthy" if neo4j_status == "connected" else "degraded"
+        return {"status": status, "service": "ResearchRadar API", "neo4j": neo4j_status}
 
     @app.get("/", tags=["root"])
     async def root() -> dict[str, str]:
