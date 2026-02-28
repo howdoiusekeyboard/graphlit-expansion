@@ -133,7 +133,8 @@ def create_app() -> FastAPI:
                 neo4j_status = "connected"
             else:
                 neo4j_status = "disconnected"
-        except Exception:
+        except Exception as exc:
+            logger.warning("neo4j_health_check_failed", error=str(exc))
             neo4j_status = "error"
 
         status = "healthy" if neo4j_status == "connected" else "degraded"

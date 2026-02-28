@@ -8,7 +8,7 @@ Algorithms:
 - Centrality metrics (PageRank, Betweenness via networkx)
 - Graph projection (Cypher fetch → networkx DiGraph)
 
-All results are written back to Neo4j as node properties via batched MERGE queries.
+All results are written back to Neo4j as node properties via batched UNWIND + MATCH + SET queries.
 
 Usage:
     >>> from graphlit.database.graph_algorithms import GraphAlgorithms
@@ -165,6 +165,8 @@ class GraphAlgorithms:
                 self._graph,
                 seed=42,
                 resolution=1.0,
+                threshold=self.settings.louvain_tolerance,
+                max_level=self.settings.louvain_max_iterations,
             )
 
             # Build paper → community mapping
