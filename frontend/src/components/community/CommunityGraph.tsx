@@ -56,7 +56,7 @@ function resolveThemeHex(varName: string, fallback: string): string {
   // Modern Tailwind often uses spaced HSL/RGB without the function wrapper.
   // If it's already a complete color string (hex or function), use it.
   // Otherwise, if it has 3 parts (like H S L), wrap it in hsl().
-  const isColorFunction = /^[a-z]+\(/i.test(raw);
+  const isColorFunction = /^[a-z][a-z0-9-]*\(/i.test(raw);
   const isHex = raw.startsWith('#');
   const parts = raw.split(' ').filter(Boolean);
 

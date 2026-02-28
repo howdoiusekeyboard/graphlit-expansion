@@ -4,8 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { BookOpen, LayoutDashboard, Menu, Users, X, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Suspense, useEffect, useState } from 'react';
-import { SearchBar } from '@/components/search/SearchBar';
+import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 
 const navLinks = [
@@ -44,12 +43,6 @@ export function Navbar() {
               </Link>
             </Button>
           ))}
-        </div>
-
-        <div className="hidden md:flex flex-1 max-w-md mx-6">
-          <Suspense fallback={<div className="h-9 w-full bg-muted/50 rounded-md animate-pulse" />}>
-            <SearchBar />
-          </Suspense>
         </div>
 
         <Button
@@ -92,13 +85,6 @@ export function Navbar() {
                     </Link>
                   </Button>
                 ))}
-
-                {/* Mobile Search - Rendered inline when menu is open */}
-                <div className="pt-2 mt-2 border-t">
-                  <Suspense fallback={<div className="h-9 w-full bg-muted/50 rounded-md animate-pulse" />}>
-                    <SearchBar />
-                  </Suspense>
-                </div>
               </div>
             </div>
           </motion.div>
