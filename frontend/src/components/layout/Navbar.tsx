@@ -4,7 +4,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { BookOpen, LayoutDashboard, Menu, Users, X, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { SearchBar } from '@/components/search/SearchBar';
 import { Button } from '@/components/ui/button';
 
 const navLinks = [
@@ -45,10 +46,16 @@ export function Navbar() {
           ))}
         </div>
 
+        <div className="hidden md:flex flex-1 max-w-md mx-6">
+          <Suspense fallback={<div className="h-9 w-full bg-muted/50 rounded-md animate-pulse" />}>
+            <SearchBar />
+          </Suspense>
+        </div>
+
         <Button
           variant="ghost"
-          size="sm"
-          className="md:hidden ml-auto"
+          size="icon"
+          className="md:hidden ml-auto h-10 w-10 min-w-10"
           onClick={() => setMobileOpen((prev) => !prev)}
           aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
           aria-expanded={mobileOpen}
@@ -63,6 +70,7 @@ export function Navbar() {
           <motion.div
             id="mobile-nav"
             role="region"
+            aria-label="Mobile navigation"
             aria-hidden={!mobileOpen}
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
@@ -84,6 +92,13 @@ export function Navbar() {
                     </Link>
                   </Button>
                 ))}
+
+                {/* Mobile Search - Rendered inline when menu is open */}
+                <div className="pt-2 mt-2 border-t">
+                  <Suspense fallback={<div className="h-9 w-full bg-muted/50 rounded-md animate-pulse" />}>
+                    <SearchBar />
+                  </Suspense>
+                </div>
               </div>
             </div>
           </motion.div>

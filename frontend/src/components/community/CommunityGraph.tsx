@@ -49,12 +49,25 @@ const escapeHtml = (value: unknown): string =>
 /** Resolve a CSS custom property to a hex color (#rrggbb) safe for Canvas alpha appending. */
 function resolveThemeHex(varName: string, fallback: string): string {
   if (typeof window === 'undefined') return fallback;
+  // Extract the raw value, e.g., "24 95% 53%" or "210 40% 98%"
   const raw = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
   if (!raw) return fallback;
 
-  // Detect any CSS color function (hsl, rgb, oklch, lab, lch, etc.)
+  // Modern Tailwind often uses spaced HSL/RGB without the function wrapper.
+  // If it's already a complete color string (hex or function), use it.
+  // Otherwise, if it has 3 parts (like H S L), wrap it in hsl().
   const isColorFunction = /^[a-z]+\(/i.test(raw);
-  const cssColor = raw.startsWith('#') || isColorFunction ? raw : `hsl(${raw})`;
+  const isHex = raw.startsWith('#');
+  const parts = raw.split(' ').filter(Boolean);
+
+  let cssColor = raw;
+  if (!isHex && !isColorFunction) {
+    if (parts.length >= 3) {
+      cssColor = `hsl(${parts.join(' ')})`; // e.g. "hsl(24 95% 53%)"
+    } else {
+      cssColor = `hsl(${raw})`;
+    }
+  }
 
   // Use a throwaway canvas to convert any CSS color → #rrggbb hex
   const ctx = document.createElement('canvas').getContext('2d');
@@ -105,7 +118,13 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
       if (!entry) return;
       const rect = entry.contentRect;
       if (rect.width > 0 && rect.height > 0) {
-        setDimensions({ width: rect.width, height: rect.height });
+        // Only trigger React state updates if dimensions have genuinely changed
+        setDimensions((prev) => {
+          if (prev.width !== rect.width || prev.height !== rect.height) {
+            return { width: rect.width, height: rect.height };
+          }
+          return prev;
+        });
       }
     });
     observerRef.current.observe(el);
@@ -183,7 +202,7 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
   // biome-ignore lint/correctness/useExhaustiveDependencies: graphData.nodes.length reconfigures forces when new data arrives
   useEffect(() => {
     forcesConfigured.current = false;
-    let attempts = 0;
+    // We poll continuously until the graph ref is populated (can be delayed by dynamic imports)
     const interval = setInterval(() => {
       const ref = viewMode === '2d' ? graph2DRef : graph3DRef;
       if (ref.current && !forcesConfigured.current) {
@@ -194,8 +213,9 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
         forcesConfigured.current = true;
         clearInterval(interval);
       }
-      if (++attempts > 20) clearInterval(interval);
     }, 50);
+
+    // Safety cleanup: If component unmounts before forces were configured, clear the interval
     return () => clearInterval(interval);
   }, [viewMode, graphData.nodes.length]);
 
