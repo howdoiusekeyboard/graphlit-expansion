@@ -27,7 +27,7 @@ export default function CommunitiesPage() {
         >
           Community Discovery
         </Badge>
-        <h1 className="text-5xl md:text-7xl font-black tracking-tighter uppercase italic leading-none">
+        <h1 className="text-[clamp(2.5rem,6vw,4.5rem)] font-black tracking-tighter uppercase italic leading-none">
           Research <br />
           <span className="text-primary">Clusters</span>
         </h1>
@@ -38,7 +38,7 @@ export default function CommunitiesPage() {
       </header>
 
       {/* Filter Control */}
-      <div className="flex items-center gap-6 p-6 rounded-3xl border bg-card/50 backdrop-blur-sm">
+      <div className="flex flex-wrap items-center gap-4 md:gap-6 p-4 md:p-6 rounded-3xl border bg-card/50 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <Filter className="h-5 w-5 text-primary" />
           <label

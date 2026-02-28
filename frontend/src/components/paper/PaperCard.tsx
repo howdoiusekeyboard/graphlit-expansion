@@ -21,7 +21,7 @@ export function PaperCard({ paper, showSimilarity = false }: PaperCardProps) {
   };
 
   return (
-    <Card className="group hover:shadow-xl transition-all duration-300 border-muted-foreground/10 hover:border-primary/50 bg-card/50 backdrop-blur-sm overflow-hidden flex flex-col h-full">
+    <Card className="group hover:shadow-xl transition-all duration-300 border-muted-foreground/10 hover:border-primary/50 bg-card/50 backdrop-blur-sm overflow-hidden flex flex-col h-full active:scale-[0.98]">
       <CardHeader className="flex-1">
         <div className="flex justify-between items-start gap-2 mb-2">
           <Badge variant="outline" className="bg-primary/5 text-primary border-primary/20">

@@ -45,10 +45,10 @@ export default function HomePage() {
             transition={{ duration: 0.5 }}
             className="space-y-4"
           >
-            <h1 className="text-6xl md:text-8xl font-black tracking-tighter leading-tight">
+            <h1 className="text-[clamp(3rem,8vw,6rem)] font-black tracking-tighter leading-tight">
               Graph DBMS <span className="text-primary">Citation</span> Intelligence
             </h1>
-            <p className="text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto font-medium">
+            <p className="text-[clamp(1.125rem,4vw,1.5rem)] text-muted-foreground max-w-3xl mx-auto font-medium">
               Discover academic breakthroughs through collaborative filtering, community detection,
               and predictive impact scoring.
             </p>
@@ -67,12 +67,21 @@ export default function HomePage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, delay: 0.3 }}
-            className="flex items-center justify-center gap-4 pt-4"
+            className="flex flex-col sm:flex-row items-center justify-center gap-3 pt-4"
           >
-            <Button size="lg" className="rounded-full px-8 font-bold" asChild>
+            <Button
+              size="lg"
+              className="w-full sm:w-auto rounded-full px-8 font-bold active:scale-[0.98] transition-transform"
+              asChild
+            >
               <Link href="/communities">Explore Communities</Link>
             </Button>
-            <Button size="lg" variant="outline" className="rounded-full px-8 font-bold" asChild>
+            <Button
+              size="lg"
+              variant="outline"
+              className="w-full sm:w-auto rounded-full px-8 font-bold active:scale-[0.98] transition-transform"
+              asChild
+            >
               <Link href="/search">Advanced Search</Link>
             </Button>
           </motion.div>
@@ -111,7 +120,7 @@ export default function HomePage() {
 
       {/* Featured Papers */}
       <section className="container space-y-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-y-2">
           <div className="space-y-1">
             <h2 className="text-3xl font-black flex items-center gap-3">
               <TrendingUp className="text-primary h-8 w-8" />

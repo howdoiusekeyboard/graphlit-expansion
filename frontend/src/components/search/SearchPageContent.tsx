@@ -53,7 +53,7 @@ export function SearchPageContent() {
           >
             Discovery Engine
           </Badge>
-          <h1 className="text-5xl md:text-7xl font-black tracking-tighter uppercase italic leading-none">
+          <h1 className="text-[clamp(2.5rem,6vw,4.5rem)] font-black tracking-tighter uppercase italic leading-none">
             Uncover Hidden <br />
             <span className="text-primary">Intelligence</span>
           </h1>
@@ -82,7 +82,7 @@ export function SearchPageContent() {
 
         {/* Results Area */}
         <main className="lg:col-span-3 space-y-8">
-          <div className="flex items-center justify-between border-b pb-4">
+          <div className="flex items-center justify-between flex-wrap gap-y-2 border-b pb-4">
             <div className="flex items-center gap-3">
               <h2 className="text-2xl font-black uppercase tracking-tighter">Research Yield</h2>
               {results && (
