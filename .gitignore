@@ -5,7 +5,6 @@
 backend/new/
 
 # Project documentation (keep local only)
-backend/CLAUDE.md
 backend/IMPROVEMENTS.md
 backend/Master Prompt.md
 prompt.md
