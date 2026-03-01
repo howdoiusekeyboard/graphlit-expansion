@@ -571,22 +571,22 @@ WITH community_papers, total_papers, total_edges, possible_edges, bridging_paper
        paper IN community_papers | sum + COALESCE(paper.pagerank, 0.0)
      ) AS total_pagerank
 
-// Calculate growth rate using cluster-relative time split
-WITH community_papers, total_papers, total_edges, possible_edges, bridging_papers, total_pagerank,
-     reduce(minY = 9999, paper IN community_papers |
-       CASE WHEN paper.year IS NOT NULL AND paper.year < minY THEN paper.year ELSE minY END
-     ) AS min_year,
-     reduce(maxY = 0, paper IN community_papers |
-       CASE WHEN paper.year IS NOT NULL AND paper.year > maxY THEN paper.year ELSE maxY END
+// Calculate growth rate: last 5 years vs previous 5 years
+WITH community_papers, total_papers, total_edges, possible_edges,
+     bridging_papers, total_pagerank,
+     reduce(maxY = 0, p IN community_papers |
+       CASE WHEN p.year IS NOT NULL AND p.year > maxY
+         THEN p.year ELSE maxY END
      ) AS max_year
-WITH community_papers, total_papers, total_edges, possible_edges, bridging_papers, total_pagerank,
-     min_year + (max_year - min_year) / 2 AS split_year
 WITH community_papers, total_papers, total_edges, possible_edges,
      bridging_papers, total_pagerank,
      size([p IN community_papers
-       WHERE p.year IS NOT NULL AND p.year >= split_year]) AS recent_count,
+       WHERE p.year IS NOT NULL
+         AND p.year > max_year - 5]) AS recent_count,
      size([p IN community_papers
-       WHERE p.year IS NOT NULL AND p.year < split_year]) AS older_count
+       WHERE p.year IS NOT NULL
+         AND p.year <= max_year - 5
+         AND p.year > max_year - 10]) AS older_count
 
 // Get topic distribution
 UNWIND community_papers AS paper
