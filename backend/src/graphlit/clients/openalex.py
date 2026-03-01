@@ -114,10 +114,12 @@ class OpenAlexClient:
         """
         async with self.limiter:
             try:
-                params: dict[str, str] = {}
+                # Inject api_key directly into URL to avoid httpx replacing
+                # existing query params when params dict is passed separately
                 if self._api_key:
-                    params["api_key"] = self._api_key
-                response = await self._client.get(url, params=params)
+                    sep = "&" if "?" in url else "?"
+                    url = f"{url}{sep}api_key={self._api_key}"
+                response = await self._client.get(url)
                 response.raise_for_status()
                 return response.json()  # type: ignore[no-any-return]
 
