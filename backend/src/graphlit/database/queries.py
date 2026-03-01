@@ -571,13 +571,22 @@ WITH community_papers, total_papers, total_edges, possible_edges, bridging_paper
        paper IN community_papers | sum + COALESCE(paper.pagerank, 0.0)
      ) AS total_pagerank
 
-// Calculate growth rate (papers published in recent years vs older)
+// Calculate growth rate using cluster-relative time split
 WITH community_papers, total_papers, total_edges, possible_edges, bridging_papers, total_pagerank,
-     [paper IN community_papers WHERE paper.year >= 2023 | paper] AS recent_papers,
-     [paper IN community_papers WHERE paper.year < 2023 | paper] AS older_papers
+     reduce(minY = 9999, paper IN community_papers |
+       CASE WHEN paper.year IS NOT NULL AND paper.year < minY THEN paper.year ELSE minY END
+     ) AS min_year,
+     reduce(maxY = 0, paper IN community_papers |
+       CASE WHEN paper.year IS NOT NULL AND paper.year > maxY THEN paper.year ELSE maxY END
+     ) AS max_year
 WITH community_papers, total_papers, total_edges, possible_edges, bridging_papers, total_pagerank,
-     size(recent_papers) AS recent_count,
-     size(older_papers) AS older_count
+     min_year + (max_year - min_year) / 2 AS split_year
+WITH community_papers, total_papers, total_edges, possible_edges,
+     bridging_papers, total_pagerank,
+     size([p IN community_papers
+       WHERE p.year IS NOT NULL AND p.year >= split_year]) AS recent_count,
+     size([p IN community_papers
+       WHERE p.year IS NOT NULL AND p.year < split_year]) AS older_count
 
 // Get topic distribution
 UNWIND community_papers AS paper

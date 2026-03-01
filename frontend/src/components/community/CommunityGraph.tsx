@@ -95,6 +95,8 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
   const graph3DRef = useRef<any>(null);
 
   const forcesConfigured = useRef(false);
+  const initialFitDone = useRef(false);
+  const hoveredNodeRef = useRef<string | null>(null);
 
   // Resolve theme color on mount
   useEffect(() => {
@@ -177,15 +179,26 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
   );
 
   // Hover → track for highlighting
-  // biome-ignore lint/suspicious/noExplicitAny: node type from library
-  const handleNodeHover = useCallback((node: any) => {
-    setHoveredNode(node?.id ?? null);
-  }, []);
+  const handleNodeHover = useCallback(
+    // biome-ignore lint/suspicious/noExplicitAny: node type from library
+    (node: any) => {
+      const id = node?.id ?? null;
+      hoveredNodeRef.current = id;
+      // Only trigger re-render in 2D mode where canvas repaint needs it.
+      // In 3D mode, three.js handles color via the nodeColor callback reading the ref.
+      if (viewMode === '2d') {
+        setHoveredNode(id);
+      }
+    },
+    [viewMode],
+  );
 
-  // Zoom to fit once the engine settles (called by onEngineStop)
+  // Zoom to fit once on initial layout only — prevents hover-triggered zoom resets
   const handleEngineStop = useCallback(() => {
+    if (initialFitDone.current) return;
     const ref = viewMode === '2d' ? graph2DRef : graph3DRef;
     ref.current?.zoomToFit?.(400, 40);
+    initialFitDone.current = true;
   }, [viewMode]);
 
   // Re-fit when container dimensions change (e.g., tab becomes visible)
@@ -202,6 +215,7 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
   // biome-ignore lint/correctness/useExhaustiveDependencies: graphData.nodes.length reconfigures forces when new data arrives
   useEffect(() => {
     forcesConfigured.current = false;
+    initialFitDone.current = false;
     // We poll continuously until the graph ref is populated (can be delayed by dynamic imports)
     const interval = setInterval(() => {
       const ref = viewMode === '2d' ? graph2DRef : graph3DRef;
@@ -498,14 +512,32 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
           {...sharedProps}
           nodeColor={(node: Record<string, unknown>) => {
             const nodeId = node.id as string;
-            if (!hoveredNode) return primaryColor;
-            if (nodeId === hoveredNode) return primaryColor;
-            if (adjacencyMap.get(hoveredNode)?.has(nodeId)) return primaryColor;
+            const hovered = hoveredNodeRef.current;
+            if (!hovered) return primaryColor;
+            if (nodeId === hovered) return primaryColor;
+            if (adjacencyMap.get(hovered)?.has(nodeId)) return primaryColor;
             return `${primaryColor}50`;
           }}
           nodeOpacity={0.9}
-          linkColor={getLinkColor}
-          linkWidth={getLinkWidth}
+          linkColor={(link: Record<string, unknown>) => {
+            const hovered = hoveredNodeRef.current;
+            if (!hovered) return 'rgba(255, 255, 255, 0.1)';
+            const src =
+              typeof link.source === 'string' ? link.source : (link.source as { id: string })?.id;
+            const tgt =
+              typeof link.target === 'string' ? link.target : (link.target as { id: string })?.id;
+            if (src === hovered || tgt === hovered) return `${primaryColor}bb`;
+            return 'rgba(255, 255, 255, 0.04)';
+          }}
+          linkWidth={(link: Record<string, unknown>) => {
+            const hovered = hoveredNodeRef.current;
+            if (!hovered) return 0.5;
+            const src =
+              typeof link.source === 'string' ? link.source : (link.source as { id: string })?.id;
+            const tgt =
+              typeof link.target === 'string' ? link.target : (link.target as { id: string })?.id;
+            return src === hovered || tgt === hovered ? 2 : 0.2;
+          }}
           linkOpacity={0.3}
           showNavInfo={false}
           enableNavigationControls

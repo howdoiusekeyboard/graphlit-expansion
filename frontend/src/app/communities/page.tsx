@@ -11,7 +11,7 @@ import { useCommunities } from '@/lib/hooks/useCommunities';
 
 export default function CommunitiesPage() {
   const { data, isLoading } = useCommunities();
-  const [minPapers, setMinPapers] = useState<number>(1);
+  const [minPapers, setMinPapers] = useState<number>(3);
 
   // Filter communities client-side
   const filteredCommunities = data?.communities.filter(
