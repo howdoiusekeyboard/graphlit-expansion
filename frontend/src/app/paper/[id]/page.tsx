@@ -206,11 +206,9 @@ export default function PaperDetailPage({ params }: { params: Promise<{ id: stri
                   </p>
                 </div>
 
-                {recData?.recommendations[0]?.similarity_breakdown && (
+                {recData?.recommendations[0]?.component_scores && (
                   <div className="pt-6 border-t">
-                    <SimilarityBreakdown
-                      breakdown={recData.recommendations[0].similarity_breakdown}
-                    />
+                    <SimilarityBreakdown breakdown={recData.recommendations[0].component_scores} />
                   </div>
                 )}
               </section>

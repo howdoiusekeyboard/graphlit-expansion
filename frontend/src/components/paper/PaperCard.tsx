@@ -64,15 +64,23 @@ export function PaperCard({ paper, showSimilarity = false }: PaperCardProps) {
                 style={{ width: `${paper.similarity_score * 100}%` }}
               />
             </div>
-            {paper.similarity_breakdown && (
+            {'component_scores' in paper && paper.component_scores && (
               <div className="grid grid-cols-2 gap-x-3 gap-y-1 text-[10px] text-muted-foreground">
                 <div className="flex justify-between">
                   <span>Citations</span>
-                  <span>{(paper.similarity_breakdown.citation_overlap * 100).toFixed(0)}%</span>
+                  <span>{(paper.component_scores.citation * 100).toFixed(0)}%</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Topics</span>
-                  <span>{(paper.similarity_breakdown.topic_affinity * 100).toFixed(0)}%</span>
+                  <span>{(paper.component_scores.topic * 100).toFixed(0)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Authors</span>
+                  <span>{(paper.component_scores.author * 100).toFixed(0)}%</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Velocity</span>
+                  <span>{(paper.component_scores.velocity * 100).toFixed(0)}%</span>
                 </div>
               </div>
             )}

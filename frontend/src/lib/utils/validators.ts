@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
-// Recommendation breakdown
+// Recommendation breakdown (from collaborative filter component_scores)
 export const SimilarityBreakdownSchema = z.object({
-  citation_overlap: z.number().min(0).max(1),
-  topic_affinity: z.number().min(0).max(1),
-  author_collaboration: z.number().min(0).max(1),
-  citation_velocity: z.number().min(0).max(1),
+  citation: z.number().min(0).max(1),
+  topic: z.number().min(0).max(1),
+  author: z.number().min(0).max(1),
+  velocity: z.number().min(0).max(1),
 });
 
 // Paper recommendation item schema
@@ -16,7 +16,8 @@ export const RecommendationItemSchema = z.object({
   citations: z.number().int().nonnegative(),
   impact_score: z.number().min(0).max(100).nullable(),
   similarity_score: z.number().min(0).max(1),
-  similarity_breakdown: SimilarityBreakdownSchema.optional(),
+  recommendation_reason: z.string().optional(),
+  component_scores: SimilarityBreakdownSchema.nullable().optional(),
   matched_topics: z.array(z.string()).optional(),
   topic_match_count: z.number().optional(),
   relevance_score: z.number().optional(),

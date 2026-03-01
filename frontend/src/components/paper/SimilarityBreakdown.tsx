@@ -8,10 +8,10 @@ interface SimilarityBreakdownProps {
 
 export function SimilarityBreakdown({ breakdown, className }: SimilarityBreakdownProps) {
   const metrics = [
-    { label: 'Citation Overlap', value: breakdown.citation_overlap, color: 'bg-blue-500' },
-    { label: 'Topic Affinity', value: breakdown.topic_affinity, color: 'bg-emerald-500' },
-    { label: 'Author Network', value: breakdown.author_collaboration, color: 'bg-orange-500' },
-    { label: 'Citation Velocity', value: breakdown.citation_velocity, color: 'bg-purple-500' },
+    { label: 'Citation Overlap', value: breakdown.citation, color: 'bg-blue-500' },
+    { label: 'Topic Affinity', value: breakdown.topic, color: 'bg-emerald-500' },
+    { label: 'Author Network', value: breakdown.author, color: 'bg-orange-500' },
+    { label: 'Citation Velocity', value: breakdown.velocity, color: 'bg-purple-500' },
   ];
 
   return (
