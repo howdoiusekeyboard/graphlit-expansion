@@ -348,26 +348,29 @@ GET_COAUTHOR_NETWORK_PAPERS = """
 MATCH (source:Paper {openalex_id: $paper_id})-[:AUTHORED_BY]->(author:Author)
       <-[:AUTHORED_BY]-(candidate:Paper)
 WHERE candidate.openalex_id <> $paper_id
-WITH candidate, COUNT(DISTINCT author) AS shared_authors
-WHERE shared_authors > 0
+WITH candidate, COLLECT(DISTINCT author.name) AS shared_author_names
+WITH candidate, shared_author_names, SIZE(shared_author_names) AS shared_author_count
+WHERE shared_author_count > 0
 RETURN candidate.openalex_id AS paper_id,
        candidate.title AS title,
        candidate.year AS year,
        candidate.citations AS citations,
        candidate.impact_score AS impact_score,
-       shared_authors
-ORDER BY shared_authors DESC
+       shared_author_count,
+       shared_author_names
+ORDER BY shared_author_count DESC
 LIMIT $limit
 """
 
 GET_SIMILAR_VELOCITY_PAPERS = """
 MATCH (source:Paper {openalex_id: $paper_id})
-WITH source, toFloat(source.citations) / (2025 - source.year + 1) AS source_velocity
+WHERE source.year IS NOT NULL
+WITH source, toFloat(source.citations) / (2026 - source.year + 1) AS source_velocity
 MATCH (candidate:Paper)
 WHERE candidate.openalex_id <> $paper_id
   AND candidate.year IS NOT NULL
 WITH candidate, source_velocity,
-     toFloat(candidate.citations) / (2025 - candidate.year + 1) AS candidate_velocity
+     toFloat(candidate.citations) / (2026 - candidate.year + 1) AS candidate_velocity
 WITH candidate, source_velocity, candidate_velocity,
      abs(source_velocity - candidate_velocity) AS velocity_diff
 WHERE velocity_diff < source_velocity * 0.5
@@ -376,7 +379,8 @@ RETURN candidate.openalex_id AS paper_id,
        candidate.year AS year,
        candidate.citations AS citations,
        candidate.impact_score AS impact_score,
-       candidate_velocity AS citation_velocity
+       candidate_velocity AS velocity,
+       velocity_diff
 ORDER BY velocity_diff ASC
 LIMIT $limit
 """

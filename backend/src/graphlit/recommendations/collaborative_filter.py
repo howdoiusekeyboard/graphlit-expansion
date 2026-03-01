@@ -36,10 +36,7 @@ if TYPE_CHECKING:
     from graphlit.database.neo4j_client import Neo4jClient
 
 from graphlit.database import queries
-from graphlit.recommendations.similarity import (
-    citation_velocity_similarity,
-    topic_affinity_score,
-)
+from graphlit.recommendations.similarity import citation_velocity_similarity
 
 logger = structlog.get_logger(__name__)
 
@@ -165,20 +162,7 @@ class CollaborativeFilterRecommender:
         logger.debug("fetching_topic_candidates", paper_id=paper_id)
 
         try:
-            # Get source paper topics
             async with self.client.session() as session:
-                result = await session.run(
-                    queries.GET_PAPER_TOPICS,
-                    paper_id=paper_id,
-                )
-                topic_records = await result.values()
-
-                if not topic_records:
-                    return {}
-
-                source_topics = [(str(rec[0]), float(rec[2])) for rec in topic_records]
-
-                # Get similar papers
                 result = await session.run(
                     queries.GET_SIMILAR_TOPIC_PAPERS,
                     paper_id=paper_id,
@@ -187,14 +171,16 @@ class CollaborativeFilterRecommender:
                 )
                 records = await result.data()
 
+            if not records:
+                return {}
+
+            # Normalize topic_similarity scores to 0-1 range
+            max_sim = max(float(r["topic_similarity"]) for r in records) or 1.0
+
             candidates = {}
             for record in records:
-                candidate_topics_raw = record["target_topics"]
-                candidate_topics = [
-                    (str(t["topic_id"]), float(t["score"])) for t in candidate_topics_raw
-                ]
-
-                affinity = topic_affinity_score(source_topics, candidate_topics)
+                raw_similarity = float(record["topic_similarity"])
+                normalized = raw_similarity / max_sim
                 impact_score = (
                     float(record["impact_score"]) if record["impact_score"] is not None else None
                 )
@@ -204,7 +190,7 @@ class CollaborativeFilterRecommender:
                     "year": int(record["year"]) if record["year"] else None,
                     "citations": int(record["citations"]) if record["citations"] else 0,
                     "impact_score": impact_score,
-                    "similarity_score": affinity,
+                    "similarity_score": normalized,
                     "method": "topic_similarity",
                 }
 
