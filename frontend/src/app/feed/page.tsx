@@ -62,8 +62,8 @@ export default function FeedPage() {
               <span className="text-primary">Detected</span>
             </h2>
             <p className="text-muted-foreground font-medium text-lg italic leading-relaxed">
-              We haven't detected enough interaction patterns to curate your neural feed. Explore
-              the global research network to initialize your personalized discovery engine.
+              We haven&apos;t detected enough interaction patterns to curate your neural feed.
+              Explore the global research network to initialize your personalized discovery engine.
             </p>
           </div>
           <div className="flex justify-center gap-4 relative z-10">

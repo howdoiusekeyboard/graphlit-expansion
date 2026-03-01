@@ -4,7 +4,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { BookOpen, LayoutDashboard, Menu, Users, X, Zap } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 
 const navLinks = [
@@ -16,12 +16,13 @@ const navLinks = [
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
+  const [prevPathname, setPrevPathname] = useState(pathname);
 
-  // Close mobile menu on route change
-  // biome-ignore lint/correctness/useExhaustiveDependencies: pathname triggers menu close on navigation
-  useEffect(() => {
-    setMobileOpen(false);
-  }, [pathname]);
+  // Close mobile menu on route change — state-driven render pattern (React 19)
+  if (prevPathname !== pathname) {
+    setPrevPathname(pathname);
+    if (mobileOpen) setMobileOpen(false);
+  }
 
   return (
     <nav className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">

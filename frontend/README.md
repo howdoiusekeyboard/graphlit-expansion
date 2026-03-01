@@ -7,18 +7,20 @@ Interactive web application for academic paper discovery through citation intell
 | Component | Version | Purpose |
 |-----------|---------|---------|
 | Next.js | 16.1.6 | App Router, React Server Components, Turbopack |
-| React | 19.x | UI rendering |
+| React | 19.2.4 | UI rendering |
 | TypeScript | 5.x (strict) | Type safety |
-| Bun | 1.3.5+ | Package manager and runtime |
-| Tailwind CSS | 4.x | Utility-first styling |
+| Bun | 1.3.x | Package manager and runtime |
+| Tailwind CSS | 4.2.1 | Utility-first styling |
 | shadcn/ui | Radix UI | Accessible component primitives |
-| TanStack Query | v5 | Async state management (5-min stale, 30-min GC) |
-| @xyflow/react | 12.x | Interactive citation network graphs |
-| Recharts | 3.x | Charts (impact distribution, citation trends, topics) |
-| Framer Motion | 12.x | Page transitions and animations |
-| Axios | 1.x | HTTP client with interceptors |
-| Zod | 4.x | Runtime API response validation |
-| Biome | 2.x | Linting + formatting |
+| TanStack Query | 5.90.21 | Async state management (5-min stale, 30-min GC) |
+| @xyflow/react | 12.10.1 | Interactive citation network graphs |
+| react-force-graph | 1.29.x | 2D/3D cluster network visualization |
+| Recharts | 3.7.0 | Charts (impact distribution, citation trends, topics) |
+| Framer Motion | 12.34.3 | Page transitions and animations |
+| Axios | 1.13.6 | HTTP client with interceptors |
+| Zod | 4.3.6 | Runtime API response validation |
+| Biome | 2.4.4 | Linting + formatting |
+| ESLint | 9.39.x | Next.js + TypeScript lint rules |
 
 ## Getting Started
 
@@ -28,14 +30,18 @@ bun install
 
 # Configure environment
 cp .env.example .env.local
-# Edit: NEXT_PUBLIC_API_URL=http://localhost:8080
+# Edit: NEXT_PUBLIC_API_URL=https://api.graphlit.kushagragolash.tech
 
 # Start development server
 bun run dev
 # → http://localhost:3000
 ```
 
-**Requires**: Backend API running on port 8080 (see `backend/README.md`).
+**Requires**: Backend API running (see `backend/README.md`).
+
+**Production URLs**:
+- Frontend: `https://graphlit.kushagragolash.tech` (Vercel)
+- Backend API: `https://api.graphlit.kushagragolash.tech` (Koyeb)
 
 ## Pages
 
@@ -45,7 +51,7 @@ bun run dev
 | `/search` | Discovery Engine | Full-text search, temporal range filter, min impact score filter, sort by relevance, paper card grid |
 | `/paper/[id]` | Paper Detail | Metadata, abstract, citation graph (React Flow), topic badges, similarity breakdown, recommendations |
 | `/communities` | Research Clusters | Community cards with stats, min papers filter, Louvain cluster overview |
-| `/communities/[id]` | Cluster Detail | Trending papers, cluster network graph, thematic analytics, temporal filters (All Time/5Y/3Y/2Y), bridging papers |
+| `/communities/[id]` | Cluster Detail | Trending papers, 2D/3D cluster network graph, thematic analytics, temporal filters (All Time/5Y/3Y/2Y), bridging papers |
 | `/feed` | Neural Intelligence Feed | Session-based personalized recommendations, history nodes count, global trending momentum, cold start fallback |
 
 ## Components (28 total)
@@ -86,6 +92,7 @@ bun run type-check              # TypeScript strict mode
 bun run lint                    # Biome linting
 bun run lint:fix                # Auto-fix lint issues
 bun run format                  # Auto-format code
+npx eslint .                    # ESLint (Next.js + TypeScript rules)
 ```
 
 ## Architecture

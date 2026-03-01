@@ -86,7 +86,7 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
 
-  const [primaryColor, setPrimaryColor] = useState('#e97316');
+  const [primaryColor] = useState(() => resolveThemeHex('--primary', '#e97316'));
   const containerRef = useRef<HTMLDivElement | null>(null);
   const observerRef = useRef<ResizeObserver | null>(null);
   // biome-ignore lint/suspicious/noExplicitAny: react-force-graph ref types are not exported
@@ -97,11 +97,6 @@ export function CommunityGraph({ communityId, minYear, className }: CommunityGra
   const forcesConfigured = useRef(false);
   const initialFitDone = useRef(false);
   const hoveredNodeRef = useRef<string | null>(null);
-
-  // Resolve theme color on mount
-  useEffect(() => {
-    setPrimaryColor(resolveThemeHex('--primary', '#e97316'));
-  }, []);
 
   // Ref callback — attaches ResizeObserver when container element mounts/unmounts
   const setContainerRef = useCallback((el: HTMLDivElement | null) => {

@@ -1,18 +1,19 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+
+function getOrCreateSessionId(): string | null {
+  if (typeof window === 'undefined') return null;
+  let id = localStorage.getItem('graphlit_session_id');
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('graphlit_session_id', id);
+  }
+  return id;
+}
 
 export function SessionManager() {
-  const [sessionId, setSessionId] = useState<string | null>(null);
-
-  useEffect(() => {
-    let id = localStorage.getItem('graphlit_session_id');
-    if (!id) {
-      id = crypto.randomUUID();
-      localStorage.setItem('graphlit_session_id', id);
-    }
-    setSessionId(id);
-  }, []);
+  const [sessionId] = useState(getOrCreateSessionId);
 
   if (process.env.NODE_ENV !== 'development' || !sessionId) {
     return null;
