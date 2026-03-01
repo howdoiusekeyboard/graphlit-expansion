@@ -40,7 +40,7 @@ export function PaperCard({ paper, showSimilarity = false }: PaperCardProps) {
         <CardDescription className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs mt-2">
           <span className="flex items-center gap-1">
             <Calendar className="h-3 w-3" />
-            {paper.year}
+            {paper.year ?? 'N/A'}
           </span>
           <span className="flex items-center gap-1">
             <BookOpen className="h-3 w-3" />

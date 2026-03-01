@@ -12,9 +12,9 @@ export const SimilarityBreakdownSchema = z.object({
 export const RecommendationItemSchema = z.object({
   paper_id: z.string().regex(/^W\d+$/, 'Invalid OpenAlex ID format'),
   title: z.string().min(1),
-  year: z.number().int().min(1900).max(2100),
+  year: z.number().int().min(1900).max(2100).nullable(),
   citations: z.number().int().nonnegative(),
-  impact_score: z.number().min(0).max(100),
+  impact_score: z.number().min(0).max(100).nullable(),
   similarity_score: z.number().min(0).max(1),
   similarity_breakdown: SimilarityBreakdownSchema.optional(),
   matched_topics: z.array(z.string()).optional(),
@@ -76,7 +76,7 @@ export const CommunitiesResponseSchema = z.object({
 export const TrendingPaperItemSchema = z.object({
   paper_id: z.string().regex(/^W\d+$/, 'Invalid OpenAlex ID format'),
   title: z.string().min(1),
-  year: z.number().int().min(1900).max(2100),
+  year: z.number().int().min(1900).max(2100).nullable(),
   citations: z.number().int().nonnegative(),
   impact_score: z.number().min(0).max(100).nullable(),
   pagerank: z.number().nullable(),
