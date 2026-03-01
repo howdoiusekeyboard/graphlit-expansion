@@ -11,7 +11,7 @@ import { useCommunities } from '@/lib/hooks/useCommunities';
 
 export default function CommunitiesPage() {
   const { data, isLoading } = useCommunities();
-  const [minPapers, setMinPapers] = useState<number>(3);
+  const [minPapers, setMinPapers] = useState<number>(1);
 
   // Filter communities client-side
   const filteredCommunities = data?.communities.filter(
@@ -67,7 +67,7 @@ export default function CommunitiesPage() {
         />
 
         <span className="text-xs text-muted-foreground font-medium italic">
-          Showing {filteredCommunities?.length ?? 0} of {data?.total ?? 0} clusters
+          Showing {filteredCommunities?.length ?? 0} clusters
         </span>
       </div>
 

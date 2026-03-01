@@ -1249,12 +1249,15 @@ async def get_communities(
               AND p.openalex_id IS NOT NULL
               AND p.openalex_id <> 'None'
             WITH p.community AS comm_id, count(p) AS paper_count, avg(p.impact_score) AS avg_impact
-            MATCH (p2:Paper {community: comm_id})-[:BELONGS_TO_TOPIC]->(t:Topic)
+            OPTIONAL MATCH (p2:Paper {community: comm_id})-[:BELONGS_TO_TOPIC]->(t:Topic)
             WHERE p2.openalex_id IS NOT NULL
               AND p2.openalex_id <> 'None'
-            WITH comm_id, paper_count, avg_impact, t.name AS topic_name, count(p2) AS topic_weight
+            WITH comm_id, paper_count, avg_impact,
+                 CASE WHEN t IS NOT NULL THEN t.name ELSE NULL END AS topic_name,
+                 CASE WHEN t IS NOT NULL THEN count(p2) ELSE 0 END AS topic_weight
             ORDER BY topic_weight DESC
-            WITH comm_id, paper_count, avg_impact, collect(topic_name)[0..5] AS top_topics
+            WITH comm_id, paper_count, avg_impact,
+                 [x IN collect(topic_name) WHERE x IS NOT NULL][0..5] AS top_topics
             RETURN comm_id, paper_count, avg_impact, top_topics
             ORDER BY comm_id
             """

@@ -192,9 +192,7 @@ async def get_database_stats(
                 "total_communities": """
                     MATCH (p:Paper)
                     WHERE p.community IS NOT NULL
-                    WITH p.community AS community_id, count(p) AS size
-                    WHERE size >= 3
-                    RETURN count(DISTINCT community_id) AS count
+                    RETURN count(DISTINCT p.community) AS count
                 """,
                 "total_citations": """
                     MATCH (p:Paper)

@@ -109,7 +109,7 @@ export default function HomePage() {
                 </div>
                 {stat.label === 'Communities' && (
                   <p className="text-xs text-muted-foreground/70 font-medium italic pt-2">
-                    Minimum 3 papers
+                    Research clusters
                   </p>
                 )}
               </div>

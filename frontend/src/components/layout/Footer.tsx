@@ -1,5 +1,6 @@
 import { ExternalLink, Github } from 'lucide-react';
 import Link from 'next/link';
+import { API_BASE_URL } from '@/lib/constants';
 
 export function Footer() {
   return (
@@ -58,7 +59,7 @@ export function Footer() {
             <ul className="space-y-2 text-sm font-bold text-muted-foreground">
               <li>
                 <Link
-                  href="http://localhost:8080/docs"
+                  href={`${API_BASE_URL}/docs`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-primary transition-colors inline-flex items-center gap-1"
@@ -95,7 +96,7 @@ export function Footer() {
 
         <div className="mt-12 pt-8 border-t text-center">
           <p className="text-xs font-black uppercase tracking-tighter text-muted-foreground">
-            © 2025 GRAPHLIT INTELLIGENCE SYSTEMS. ALL RIGHTS RESERVED.
+            © 2026 GRAPHLIT INTELLIGENCE SYSTEMS. ALL RIGHTS RESERVED.
           </p>
         </div>
       </div>
