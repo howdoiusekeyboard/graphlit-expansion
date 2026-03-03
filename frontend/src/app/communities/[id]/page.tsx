@@ -183,8 +183,9 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
           <section>
             <BridgingPapers
               papers={
-                trendingData?.trending_papers?.filter((p) => (p.pagerank || 0) > 0.05).slice(0, 2) ||
-                []
+                trendingData?.trending_papers
+                  ?.filter((p) => (p.pagerank || 0) > 0.05)
+                  .slice(0, 2) || []
               }
             />
           </section>
