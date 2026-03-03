@@ -163,7 +163,7 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                 <AnimatePresence mode="popLayout">
-                  {trendingData?.trending_papers.map((paper, i) => (
+                  {trendingData?.trending_papers?.map((paper, i) => (
                     <motion.div
                       key={paper.paper_id}
                       layout
@@ -183,7 +183,7 @@ export default function CommunityDetailPage({ params }: { params: Promise<{ id: 
           <section>
             <BridgingPapers
               papers={
-                trendingData?.trending_papers.filter((p) => (p.pagerank || 0) > 0.05).slice(0, 2) ||
+                trendingData?.trending_papers?.filter((p) => (p.pagerank || 0) > 0.05).slice(0, 2) ||
                 []
               }
             />
