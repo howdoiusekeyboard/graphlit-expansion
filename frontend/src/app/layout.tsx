@@ -12,8 +12,21 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'GraphLit ResearchRadar | AI Citation Intelligence',
-  description: 'Graph DBMS citation intelligence and academic research discovery platform.',
+  metadataBase: new URL('https://graphlit.kushagragolash.tech'),
+  title: {
+    default: 'GraphLit ResearchRadar | AI Citation Intelligence',
+    template: '%s | GraphLit ResearchRadar',
+  },
+  description:
+    'Citation intelligence platform for academic research discovery through collaborative filtering and community detection.',
+  openGraph: {
+    type: 'website',
+    siteName: 'GraphLit ResearchRadar',
+    locale: 'en_US',
+  },
+  twitter: { card: 'summary_large_image' },
+  manifest: '/manifest.webmanifest',
+  other: { 'theme-color': '#e97316' },
 };
 
 export default function RootLayout({
@@ -26,6 +39,26 @@ export default function RootLayout({
       <body
         className={`${jetbrainsMono.variable} font-mono antialiased min-h-screen flex flex-col`}
       >
+        <script
+          type="application/ld+json"
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: JSON-LD structured data is hardcoded, not user input
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'WebApplication',
+              name: 'GraphLit ResearchRadar',
+              url: 'https://graphlit.kushagragolash.tech',
+              applicationCategory: 'ResearchTool',
+              description:
+                'Citation intelligence platform for academic research discovery through collaborative filtering and community detection.',
+              author: {
+                '@type': 'Person',
+                name: 'Kushagra Golash',
+                url: 'https://kushagragolash.tech',
+              },
+            }),
+          }}
+        />
         <QueryProvider>
           <SessionManager />
           <Navbar />
